@@ -79,8 +79,7 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
 
   const handleProfile = () => {
     setShowDropdown(false);
-    // Navigate to profile page or show profile modal
-    alert('Profile settings functionality coming soon!');
+    window.location.href = '/profile';
   };
 
   const handleDisconnectClick = () => {
