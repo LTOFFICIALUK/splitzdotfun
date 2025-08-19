@@ -106,13 +106,48 @@ const CreateCoin: React.FC = () => {
   };
 
   const removeRoyaltyRecipient = (id: string) => {
-    setRoyaltyRecipients(prev => prev.filter(recipient => recipient.id !== id));
+    setRoyaltyRecipients(prev => {
+      const filtered = prev.filter(recipient => recipient.id !== id);
+      
+      // If we removed a recipient and the total is now less than 100%, 
+      // automatically add the remaining percentage to the creator (first recipient)
+      if (filtered.length > 0) {
+        const total = filtered.reduce((sum, recipient) => sum + recipient.percentage, 0);
+        if (total < 100) {
+          const remaining = 100 - total;
+          filtered[0].percentage += remaining;
+        }
+      }
+      
+      return filtered;
+    });
   };
 
   const updateRoyaltyRecipient = (id: string, field: keyof RoyaltyRecipient, value: string | number) => {
-    setRoyaltyRecipients(prev => prev.map(recipient => 
-      recipient.id === id ? { ...recipient, [field]: value } : recipient
-    ));
+    if (field === 'percentage') {
+      const numValue = typeof value === 'string' ? parseInt(value) || 0 : value;
+      
+      // Calculate what the total would be if we update this recipient
+      const currentTotal = getTotalPercentage();
+      const currentRecipientPercentage = royaltyRecipients.find(r => r.id === id)?.percentage || 0;
+      const newTotal = currentTotal - currentRecipientPercentage + numValue;
+      
+      // If the new total would exceed 100%, don't allow the update
+      if (newTotal > 100) {
+        return;
+      }
+      
+      // Ensure the percentage is within valid bounds
+      const clampedValue = Math.max(0, Math.min(100, numValue));
+      
+      setRoyaltyRecipients(prev => prev.map(recipient => 
+        recipient.id === id ? { ...recipient, [field]: clampedValue } : recipient
+      ));
+    } else {
+      setRoyaltyRecipients(prev => prev.map(recipient => 
+        recipient.id === id ? { ...recipient, [field]: value } : recipient
+      ));
+    }
   };
 
   const getTotalPercentage = () => {
@@ -130,7 +165,11 @@ const CreateCoin: React.FC = () => {
     }, 2000);
   };
 
-  const isFormValid = formData.name && formData.symbol && formData.description && formData.imageUrl;
+  const isFormValid = formData.name && 
+    formData.symbol && 
+    formData.description && 
+    formData.imageUrl && 
+    getTotalPercentage() <= 100;
 
   return (
     <div className="min-h-screen bg-background-dark">
@@ -313,6 +352,37 @@ const CreateCoin: React.FC = () => {
               <p className="text-text-secondary text-sm mb-6">
                 Configure how royalties are distributed when your token is traded. You can keep 100% or share with other creators, influencers, or community members.
               </p>
+              
+              {/* Total Percentage Display */}
+              <div className="flex items-center justify-between mb-4 p-3 bg-background-dark rounded-lg border border-background-elevated">
+                <span className="text-sm font-medium text-text-primary">Total Distribution:</span>
+                <div className="flex items-center space-x-2">
+                  <span className={`text-lg font-bold ${
+                    getTotalPercentage() > 100 
+                      ? 'text-red-400' 
+                      : getTotalPercentage() === 100 
+                        ? 'text-primary-mint' 
+                        : 'text-text-secondary'
+                  }`}>
+                    {getTotalPercentage()}%
+                  </span>
+                  {getTotalPercentage() > 100 && (
+                    <span className="text-xs text-red-400 bg-red-400/10 px-2 py-1 rounded">
+                      Exceeds 100%
+                    </span>
+                  )}
+                  {getTotalPercentage() === 100 && (
+                    <span className="text-xs text-primary-mint bg-primary-mint/10 px-2 py-1 rounded">
+                      Perfect!
+                    </span>
+                  )}
+                  {getTotalPercentage() < 100 && (
+                    <span className="text-xs text-text-secondary bg-background-elevated px-2 py-1 rounded">
+                      {100 - getTotalPercentage()}% remaining
+                    </span>
+                  )}
+                </div>
+              </div>
 
               <div className="space-y-4">
                 {royaltyRecipients.map((recipient, index) => (
@@ -371,18 +441,26 @@ const CreateCoin: React.FC = () => {
                       <input
                         type="range"
                         min="0"
-                        max="100"
+                        max={100 - (getTotalPercentage() - recipient.percentage)}
                         value={recipient.percentage}
                         onChange={(e) => updateRoyaltyRecipient(recipient.id, 'percentage', parseInt(e.target.value))}
-                        className="flex-1 h-2 bg-background-elevated rounded-lg appearance-none cursor-pointer slider"
+                        className={`flex-1 h-2 rounded-lg appearance-none cursor-pointer slider ${
+                          recipient.percentage >= (100 - (getTotalPercentage() - recipient.percentage))
+                            ? 'bg-primary-mint/50'
+                            : 'bg-background-elevated'
+                        }`}
                       />
                       <input
                         type="number"
                         min="0"
-                        max="100"
+                        max={100 - (getTotalPercentage() - recipient.percentage)}
                         value={recipient.percentage}
                         onChange={(e) => updateRoyaltyRecipient(recipient.id, 'percentage', parseInt(e.target.value) || 0)}
-                        className="w-16 px-2 py-1 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                        className={`w-16 px-2 py-1 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary-mint ${
+                          recipient.percentage >= (100 - (getTotalPercentage() - recipient.percentage))
+                            ? 'border-primary-mint'
+                            : ''
+                        }`}
                       />
                     </div>
                   </div>
