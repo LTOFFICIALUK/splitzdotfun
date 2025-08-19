@@ -456,11 +456,7 @@ const CreateCoin: React.FC = () => {
                         max={100 - (getTotalPercentage() - recipient.percentage)}
                         value={recipient.percentage}
                         onChange={(e) => updateRoyaltyRecipient(recipient.id, 'percentage', parseInt(e.target.value) || 0)}
-                        className={`w-16 px-2 py-1 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary-mint ${
-                          recipient.percentage >= (100 - (getTotalPercentage() - recipient.percentage))
-                            ? 'border-primary-mint'
-                            : ''
-                        }`}
+                        className="w-16 px-2 py-1 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary-mint"
                       />
                     </div>
                   </div>
