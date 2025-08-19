@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Wallet, Loader2, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Wallet, Loader2, LogOut, ChevronDown, Settings, FolderOpen, User } from 'lucide-react';
 import { useWallet } from './WalletProvider';
 import Modal from './Modal';
 
@@ -21,6 +21,8 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [isErrorVisible, setIsErrorVisible] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Auto-dismiss error after 3 seconds with fade animation
   useEffect(() => {
@@ -35,6 +37,23 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     }
   }, [error]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
+
   const handleConnect = async () => {
     try {
       setError(null);
@@ -48,8 +67,31 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     }
   };
 
+  const handleDropdownToggle = () => {
+    setShowDropdown(!showDropdown);
+  };
+
+  const handleViewProjects = () => {
+    setShowDropdown(false);
+    // Navigate to projects page or show projects modal
+    alert('View projects functionality coming soon!');
+  };
+
+  const handleSettings = () => {
+    setShowDropdown(false);
+    // Navigate to settings page or show settings modal
+    alert('Settings functionality coming soon!');
+  };
+
   const handleDisconnectClick = () => {
+    setShowDropdown(false);
     setShowDisconnectModal(true);
+  };
+
+  const handleLogout = () => {
+    setShowDropdown(false);
+    // Handle logout logic
+    alert('Logout functionality coming soon!');
   };
 
   const handleConfirmDisconnect = async () => {
@@ -100,15 +142,52 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
 
   if (isConnected && publicKey) {
     return (
-      <div className="relative">
+      <div className="relative" ref={dropdownRef}>
         <button
           className={getButtonClasses()}
-          onClick={handleDisconnectClick}
-          aria-label="Disconnect wallet"
+          onClick={handleDropdownToggle}
+          aria-label="Wallet menu"
         >
-          <LogOut className="w-4 h-4" />
           <span>{formatWalletAddress(publicKey)}</span>
+          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
         </button>
+        
+        {/* Dropdown Menu */}
+        {showDropdown && (
+          <div className="absolute top-full right-0 mt-2 w-48 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 animate-slide-up">
+            <div className="py-2">
+              <button
+                onClick={handleViewProjects}
+                className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+              >
+                <FolderOpen className="w-4 h-4" />
+                <span>View projects</span>
+              </button>
+              <button
+                onClick={handleSettings}
+                className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Settings</span>
+              </button>
+              <hr className="border-background-elevated my-1" />
+              <button
+                onClick={handleDisconnectClick}
+                className="w-full px-4 py-2 text-left text-red-400 hover:bg-background-elevated transition-colors flex items-center space-x-3"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Disconnect Wallet</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full px-4 py-2 text-left text-red-400 hover:bg-background-elevated transition-colors flex items-center space-x-3"
+              >
+                <User className="w-4 h-4" />
+                <span>Log out</span>
+              </button>
+            </div>
+          </div>
+        )}
         
         {/* Error Popup with fade animation */}
         {error && (
@@ -124,7 +203,7 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
         )}
         
         {/* Disconnect Confirmation Modal */}
-        <Modal isOpen={showDisconnectModal} onClose={handleCancelDisconnect}>
+        <Modal isOpen={showDisconnectModal} onClose={handleCancelDisconnect} title="Disconnect Wallet">
           <div className="p-6">
             <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-red-400 to-red-500 rounded-full flex items-center justify-center">
