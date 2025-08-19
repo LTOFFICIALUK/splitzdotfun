@@ -1,101 +1,113 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 import { ArrowLeft, Book, FileText, Users, ShoppingCart, Trophy, Shield, HelpCircle, Settings } from 'lucide-react';
-
-// Import all documentation content
-import platformOverview from '@/docs/platform-overview.md';
-import walletIntegration from '@/docs/WALLET_INTEGRATION.md';
-import tokenLaunching from '@/docs/token-launching.md';
-import royaltyManagement from '@/docs/royalty-management.md';
-import marketplace from '@/docs/marketplace.md';
-import leaderboard from '@/docs/leaderboard.md';
-import communityNominations from '@/docs/community-nominations.md';
-import security from '@/docs/security.md';
-import faq from '@/docs/faq.md';
-import support from '@/docs/support.md';
 
 const DocPage: React.FC = () => {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+  const [content, setContent] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Map slugs to documentation content and metadata
-  const docMap: Record<string, { content: string; title: string; description: string; icon: React.ReactNode; category: string }> = {
+  // Map slugs to documentation metadata
+  const docMap: Record<string, { title: string; description: string; icon: React.ReactNode; category: string; file: string }> = {
     'platform-overview': {
-      content: platformOverview,
       title: 'Platform Overview',
       description: 'Understanding the SplitzFun ecosystem and how all components work together',
       icon: <Book className="w-6 h-6" />,
-      category: 'getting-started'
+      category: 'getting-started',
+      file: 'platform-overview.md'
     },
     'WALLET_INTEGRATION': {
-      content: walletIntegration,
       title: 'Wallet Integration',
       description: 'How to connect and use wallets with SplitzFun',
       icon: <Settings className="w-6 h-6" />,
-      category: 'getting-started'
+      category: 'getting-started',
+      file: 'WALLET_INTEGRATION.md'
     },
     'token-launching': {
-      content: tokenLaunching,
       title: 'Token Launching',
       description: 'Complete guide to launching tokens with royalty distribution',
       icon: <FileText className="w-6 h-6" />,
-      category: 'core-features'
+      category: 'core-features',
+      file: 'token-launching.md'
     },
     'royalty-management': {
-      content: royaltyManagement,
       title: 'Royalty Management',
       description: 'How royalty distribution works and how to optimize it',
       icon: <Users className="w-6 h-6" />,
-      category: 'core-features'
+      category: 'core-features',
+      file: 'royalty-management.md'
     },
     'marketplace': {
-      content: marketplace,
       title: 'Marketplace',
       description: 'Buying and selling ownership rights in the marketplace',
       icon: <ShoppingCart className="w-6 h-6" />,
-      category: 'marketplace'
+      category: 'marketplace',
+      file: 'marketplace.md'
     },
     'leaderboard': {
-      content: leaderboard,
       title: 'Leaderboard System',
       description: 'How the ranking system works and how to improve your position',
       icon: <Trophy className="w-6 h-6" />,
-      category: 'community'
+      category: 'community',
+      file: 'leaderboard.md'
     },
     'community-nominations': {
-      content: communityNominations,
       title: 'Community Nominations',
       description: 'Suggesting new royalty earners and participating in governance',
       icon: <Users className="w-6 h-6" />,
-      category: 'community'
+      category: 'community',
+      file: 'community-nominations.md'
     },
     'security': {
-      content: security,
       title: 'Security Best Practices',
       description: 'Keeping your assets safe and secure',
       icon: <Shield className="w-6 h-6" />,
-      category: 'advanced'
+      category: 'advanced',
+      file: 'security.md'
     },
     'faq': {
-      content: faq,
       title: 'FAQ',
       description: 'Frequently asked questions and answers',
       icon: <HelpCircle className="w-6 h-6" />,
-      category: 'troubleshooting'
+      category: 'troubleshooting',
+      file: 'faq.md'
     },
     'support': {
-      content: support,
       title: 'Support',
       description: 'Getting help and contacting support',
       icon: <HelpCircle className="w-6 h-6" />,
-      category: 'troubleshooting'
+      category: 'troubleshooting',
+      file: 'support.md'
     }
   };
+
+  useEffect(() => {
+    const loadContent = async () => {
+      if (docMap[slug]) {
+        try {
+          const response = await fetch(`/docs/${docMap[slug].file}`);
+          if (response.ok) {
+            const markdownContent = await response.text();
+            setContent(markdownContent);
+          } else {
+            setContent('# Documentation Not Found\n\nThe requested documentation could not be loaded.');
+          }
+        } catch (error) {
+          setContent('# Error Loading Documentation\n\nThere was an error loading the documentation content.');
+        }
+      }
+      setLoading(false);
+    };
+
+    loadContent();
+  }, [slug]);
 
   const doc = docMap[slug];
 
@@ -164,12 +176,14 @@ const DocPage: React.FC = () => {
         <section className="py-12">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-background-card rounded-2xl border border-background-elevated p-8">
-              <div className="prose prose-invert max-w-none">
-                <div 
-                  className="text-text-primary leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: doc.content }}
-                />
-              </div>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-mint"></div>
+                  <span className="ml-3 text-text-secondary">Loading documentation...</span>
+                </div>
+              ) : (
+                <MarkdownRenderer content={content} />
+              )}
             </div>
           </div>
         </section>
