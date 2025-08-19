@@ -91,16 +91,3 @@ export const uploadProfileImage = async (file: File, walletAddress: string): Pro
 
   return publicUrl;
 };
-
-export const deleteProfileImage = async (fileName: string): Promise<boolean> => {
-  const { error } = await supabase.storage
-    .from('profile-images')
-    .remove([fileName]);
-
-  if (error) {
-    console.error('Error deleting image:', error);
-    return false;
-  }
-
-  return true;
-};
