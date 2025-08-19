@@ -199,13 +199,9 @@ const DocsPage: React.FC = () => {
     : docSections.filter(doc => doc.category === activeCategory);
 
   const handleDocClick = (link: string) => {
-    // For now, we'll show an alert since the actual docs are in the /docs folder
-    // In a real implementation, you'd navigate to the actual documentation
-    if (link.includes('WALLET_INTEGRATION')) {
-      alert('Wallet Integration documentation is available in the /docs folder. This would link to the actual documentation page.');
-    } else {
-      alert(`This would navigate to: ${link}`);
-    }
+    // Extract the slug from the link
+    const slug = link.replace('/docs/', '');
+    window.location.href = `/docs/${slug}`;
   };
 
   return (
@@ -232,22 +228,18 @@ const DocsPage: React.FC = () => {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
               <div className="bg-background-dark rounded-xl p-6 border border-background-elevated text-center">
-                <div className="text-2xl font-bold text-primary-mint mb-2">18</div>
+                <div className="text-2xl font-bold text-primary-mint mb-2">22</div>
                 <div className="text-text-secondary text-sm">Documentation Guides</div>
               </div>
               <div className="bg-background-dark rounded-xl p-6 border border-background-elevated text-center">
-                <div className="text-2xl font-bold text-primary-aqua mb-2">6</div>
+                <div className="text-2xl font-bold text-primary-aqua mb-2">7</div>
                 <div className="text-text-secondary text-sm">Categories</div>
               </div>
               <div className="bg-background-dark rounded-xl p-6 border border-background-elevated text-center">
                 <div className="text-2xl font-bold text-primary-mint mb-2">24/7</div>
                 <div className="text-text-secondary text-sm">Community Support</div>
-              </div>
-              <div className="bg-background-dark rounded-xl p-6 border border-background-elevated text-center">
-                <div className="text-2xl font-bold text-primary-aqua mb-2">100%</div>
-                <div className="text-text-secondary text-sm">Free Access</div>
               </div>
             </div>
           </div>
