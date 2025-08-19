@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, Loader2, LogOut, ChevronDown, Settings, FolderOpen, User } from 'lucide-react';
+import { Wallet, Loader2, LogOut, ChevronDown, Settings, FolderOpen } from 'lucide-react';
 import { useWallet } from './WalletProvider';
 import Modal from './Modal';
 
@@ -88,11 +88,7 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     setShowDisconnectModal(true);
   };
 
-  const handleLogout = () => {
-    setShowDropdown(false);
-    // Handle logout logic
-    alert('Logout functionality coming soon!');
-  };
+
 
   const handleConfirmDisconnect = async () => {
     try {
@@ -158,32 +154,25 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
             <div className="py-2">
               <button
                 onClick={handleViewProjects}
-                className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3 whitespace-nowrap"
               >
-                <FolderOpen className="w-4 h-4" />
+                <FolderOpen className="w-4 h-4 flex-shrink-0" />
                 <span>View projects</span>
               </button>
               <button
                 onClick={handleSettings}
-                className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3 whitespace-nowrap"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-4 h-4 flex-shrink-0" />
                 <span>Settings</span>
               </button>
               <hr className="border-background-elevated my-1" />
               <button
                 onClick={handleDisconnectClick}
-                className="w-full px-4 py-2 text-left text-red-400 hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                className="w-full px-4 py-2 text-left text-red-400 hover:bg-background-elevated transition-colors flex items-center space-x-3 whitespace-nowrap"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-4 h-4 flex-shrink-0" />
                 <span>Disconnect Wallet</span>
-              </button>
-              <button
-                onClick={handleLogout}
-                className="w-full px-4 py-2 text-left text-red-400 hover:bg-background-elevated transition-colors flex items-center space-x-3"
-              >
-                <User className="w-4 h-4" />
-                <span>Log out</span>
               </button>
             </div>
           </div>
