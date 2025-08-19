@@ -1,0 +1,234 @@
+'use client';
+
+import React, { useState } from 'react';
+import Header from '@/components/layout/Header';
+import Footer from '@/components/layout/Footer';
+import LeaderboardTable from '@/components/ui/LeaderboardTable';
+import StatCard from '@/components/ui/StatCard';
+import { LeaderboardEntry } from '@/types';
+import { Trophy, TrendingUp, Users, DollarSign, Share2, Lightbulb, Users2 } from 'lucide-react';
+
+export default function LeaderboardPage() {
+  const [timePeriod, setTimePeriod] = useState('week');
+
+  // Mock leaderboard data
+  const leaderboardData: LeaderboardEntry[] = [
+    {
+      handle: '@memelord',
+      avatarUrl: '/images/avatar-meme.png',
+      earnedSOL: 3.42,
+      tokenTicker: 'FROGZ',
+    },
+    {
+      handle: '@cryptoking',
+      avatarUrl: '/images/avatar-crypto.png',
+      earnedSOL: 2.89,
+      tokenTicker: 'PEPE',
+    },
+    {
+      handle: '@solanaqueen',
+      avatarUrl: '/images/avatar-solana.png',
+      earnedSOL: 2.15,
+      tokenTicker: 'BONK',
+    },
+    {
+      handle: '@degenmaster',
+      avatarUrl: '/images/avatar-degen.png',
+      earnedSOL: 1.98,
+      tokenTicker: 'DOGE',
+    },
+    {
+      handle: '@nftwhale',
+      avatarUrl: '/images/avatar-whale.png',
+      earnedSOL: 1.76,
+      tokenTicker: 'SHIB',
+    },
+    {
+      handle: '@tokenlord',
+      avatarUrl: '/images/avatar-token.png',
+      earnedSOL: 1.54,
+      tokenTicker: 'VIBE',
+    },
+    {
+      handle: '@moonboy',
+      avatarUrl: '/images/avatar-moon.png',
+      earnedSOL: 1.32,
+      tokenTicker: 'MOON',
+    },
+    {
+      handle: '@rocketman',
+      avatarUrl: '/images/avatar-rocket.png',
+      earnedSOL: 1.21,
+      tokenTicker: 'ROCKET',
+    },
+    {
+      handle: '@diamondhands',
+      avatarUrl: '/images/avatar-diamond.png',
+      earnedSOL: 1.08,
+      tokenTicker: 'DIAMOND',
+    },
+    {
+      handle: '@hodler',
+      avatarUrl: '/images/avatar-hodl.png',
+      earnedSOL: 0.95,
+      tokenTicker: 'HODL',
+    },
+  ];
+
+  const stats = [
+    {
+      icon: <Trophy className="w-6 h-6" />,
+      label: 'Total Royalties Distributed',
+      value: '$2.4M',
+      change: '+12.5%',
+      changeType: 'positive' as const,
+    },
+    {
+      icon: <Users className="w-6 h-6" />,
+      label: 'Active Creators',
+      value: '1,247',
+      change: '+8.2%',
+      changeType: 'positive' as const,
+    },
+    {
+      icon: <TrendingUp className="w-6 h-6" />,
+      label: 'Average Earnings',
+      value: '1.8 SOL',
+      change: '+15.3%',
+      changeType: 'positive' as const,
+    },
+    {
+      icon: <DollarSign className="w-6 h-6" />,
+      label: 'Top Earner',
+      value: '3.42 SOL',
+      change: '@memelord',
+      changeType: 'neutral' as const,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background-dark">
+      {/* Header */}
+      <Header currentPath="/leaderboard" />
+
+      {/* Main Content */}
+      <main className="pt-16">
+        {/* Hero Section */}
+        <section className="py-20 bg-gradient-to-br from-background-card to-background-elevated">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center space-x-2 bg-background-dark rounded-full px-4 py-2 mb-4">
+                <Trophy className="w-5 h-5 text-primary-mint" />
+                <span className="text-sm font-medium text-text-primary">Royalty Leaderboard</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4">
+                Top Royalty Earners
+              </h1>
+              <p className="text-xl text-text-secondary max-w-2xl mx-auto">
+                Discover the highest-earning creators and influencers on SplitzFun. See who's leading the royalty revolution.
+              </p>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              {stats.map((stat, index) => (
+                <StatCard key={index} {...stat} />
+              ))}
+            </div>
+
+            {/* Time Period Selector */}
+            <div className="flex justify-center">
+              <div className="bg-background-dark rounded-xl p-1 border border-background-elevated">
+                {['day', 'week', 'month', 'all-time'].map((period) => (
+                  <button
+                    key={period}
+                    onClick={() => setTimePeriod(period)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      timePeriod === period
+                        ? 'bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    {period.charAt(0).toUpperCase() + period.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Leaderboard Table */}
+        <section className="py-12">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-background-card rounded-2xl border border-background-elevated overflow-hidden">
+              <div className="p-6 border-b border-background-elevated">
+                <h2 className="text-2xl font-bold text-text-primary">
+                  {timePeriod.charAt(0).toUpperCase() + timePeriod.slice(1)} Rankings
+                </h2>
+                <p className="text-text-secondary mt-1">
+                  Top royalty earners for the selected time period
+                </p>
+              </div>
+              
+              <LeaderboardTable entries={leaderboardData} />
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works */}
+        <section className="py-12 bg-background-card">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h3 className="text-2xl font-bold text-text-primary mb-4">
+              How Royalty Delegation Works
+            </h3>
+            <p className="text-text-secondary text-lg leading-relaxed mb-8">
+              Token owners can delegate royalties to community members and influencers who are actively promoting their tokens and driving positive price impact. This creates a fair distribution system that rewards real value creation.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-background-dark rounded-xl p-6 border border-background-elevated">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-4">
+                  <Share2 className="w-6 h-6 text-background-dark" />
+                </div>
+                <h4 className="text-lg font-semibold text-text-primary mb-2">Owner Delegation</h4>
+                <p className="text-text-secondary text-sm">
+                  Token owners can directly delegate a percentage of royalties to community members, influencers, or content creators who are helping grow their token's ecosystem.
+                </p>
+              </div>
+              
+              <div className="bg-background-dark rounded-xl p-6 border border-background-elevated">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-4">
+                  <Lightbulb className="w-6 h-6 text-background-dark" />
+                </div>
+                <h4 className="text-lg font-semibold text-text-primary mb-2">Community Suggestions</h4>
+                <p className="text-text-secondary text-sm">
+                  Community members can suggest new royalty earners with evidence of their contributions, impact on token price, and community engagement.
+                </p>
+              </div>
+              
+              <div className="bg-background-dark rounded-xl p-6 border border-background-elevated">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-4">
+                  <Users2 className="w-6 h-6 text-background-dark" />
+                </div>
+                <h4 className="text-lg font-semibold text-text-primary mb-2">Fair Distribution</h4>
+                <p className="text-text-secondary text-sm">
+                  Royalties are distributed based on measurable impact: community building, content creation, social media promotion, and positive price influence.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 bg-background-dark rounded-xl p-6 border border-background-elevated">
+              <h4 className="text-lg font-semibold text-text-primary mb-3">Why Delegate Royalties?</h4>
+              <p className="text-text-secondary text-sm leading-relaxed">
+                By delegating royalties to active community members and influencers, token owners create a sustainable ecosystem where everyone is incentivized to contribute positively. This includes social media promotion, content creation, community management, and other activities that drive genuine engagement and price appreciation. The goal is to reward those who are actually helping the token succeed, not just those who own it.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <Footer />
+    </div>
+  );
+}
