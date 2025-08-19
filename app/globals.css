@@ -111,3 +111,48 @@ body {
 .font-mono {
   font-family: 'JetBrains Mono', 'Courier New', monospace;
 }
+
+/* Custom slider styling to prevent green coloring */
+input[type="range"].slider {
+  background: var(--background-elevated) !important;
+  outline: none !important;
+  border: none !important;
+}
+
+input[type="range"].slider:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+input[type="range"].slider:active {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+input[type="range"].slider::-webkit-slider-track {
+  background: var(--background-elevated) !important;
+  border: none !important;
+  outline: none !important;
+}
+
+input[type="range"].slider::-webkit-slider-thumb {
+  background: #3B82F6 !important;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+}
+
+input[type="range"].slider::-moz-range-track {
+  background: var(--background-elevated) !important;
+  border: none !important;
+  outline: none !important;
+}
+
+input[type="range"].slider::-moz-range-thumb {
+  background: #3B82F6 !important;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+}

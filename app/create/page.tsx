@@ -444,11 +444,11 @@ const CreateCoin: React.FC = () => {
                         max={100 - (getTotalPercentage() - recipient.percentage)}
                         value={recipient.percentage}
                         onChange={(e) => updateRoyaltyRecipient(recipient.id, 'percentage', parseInt(e.target.value))}
-                        className={`flex-1 h-2 rounded-lg appearance-none cursor-pointer slider ${
-                          recipient.percentage >= (100 - (getTotalPercentage() - recipient.percentage))
-                            ? 'bg-primary-mint/50'
-                            : 'bg-background-elevated'
-                        }`}
+                        className="flex-1 h-2 bg-background-elevated rounded-lg appearance-none cursor-pointer slider focus:outline-none focus:ring-0"
+                        style={{
+                          background: 'var(--background-elevated)',
+                          outline: 'none'
+                        }}
                       />
                       <input
                         type="number"
