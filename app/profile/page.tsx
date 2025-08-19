@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   User, 
@@ -32,6 +32,7 @@ import {
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
+import { getProfile, createProfile, updateProfile, uploadProfileImage, Profile } from '@/lib/supabase';
 
 interface SocialLink {
   platform: string;
@@ -80,8 +81,10 @@ const ProfilePage: React.FC = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showSocialDropdown, setShowSocialDropdown] = useState(false);
+  const [originalProfile, setOriginalProfile] = useState<Profile | null>(null);
 
   const handleInputChange = (field: keyof ProfileData, value: string) => {
     setProfileData(prev => ({
@@ -139,6 +142,35 @@ const ProfilePage: React.FC = () => {
     return profileData.socialLinks.some(link => link.platform === platformKey);
   };
 
+  // Load existing profile data
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (publicKey) {
+        setIsLoading(true);
+        try {
+          const profile = await getProfile(publicKey);
+          if (profile) {
+            setOriginalProfile(profile);
+            setProfileData({
+              username: profile.username || '',
+              bio: profile.bio || '',
+              website: profile.website || '',
+              profileImage: profile.profile_image_url,
+              socialLinks: profile.social_links || []
+            });
+            setImagePreview(profile.profile_image_url);
+          }
+        } catch (error) {
+          console.error('Error loading profile:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadProfile();
+  }, [publicKey]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -164,19 +196,77 @@ const ProfilePage: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!publicKey) return;
+    
     setIsSaving(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsEditing(false);
+    try {
+      // Handle image upload if there's a new image
+      let profileImageUrl = profileData.profileImage;
+      if (imagePreview && imagePreview !== originalProfile?.profile_image_url) {
+        // Convert base64 to file if needed
+        if (imagePreview.startsWith('data:')) {
+          const response = await fetch(imagePreview);
+          const blob = await response.blob();
+          const file = new File([blob], 'profile-image.jpg', { type: 'image/jpeg' });
+          profileImageUrl = await uploadProfileImage(file, publicKey);
+        }
+      }
+
+      const profileDataToSave = {
+        wallet_address: publicKey,
+        username: profileData.username,
+        bio: profileData.bio,
+        website: profileData.website,
+        profile_image_url: profileImageUrl,
+        social_links: profileData.socialLinks
+      };
+
+      let savedProfile;
+      if (originalProfile) {
+        // Update existing profile
+        savedProfile = await updateProfile(publicKey, profileDataToSave);
+      } else {
+        // Create new profile
+        savedProfile = await createProfile(profileDataToSave);
+      }
+
+      if (savedProfile) {
+        setOriginalProfile(savedProfile);
+        setIsEditing(false);
+        alert('Profile updated successfully!');
+      } else {
+        alert('Failed to save profile. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Error saving profile. Please try again.');
+    } finally {
       setIsSaving(false);
-      alert('Profile updated successfully!');
-    }, 1000);
+    }
   };
 
   const handleCancel = () => {
     setIsEditing(false);
     // Reset to original data
-    setImagePreview(null);
+    if (originalProfile) {
+      setProfileData({
+        username: originalProfile.username || '',
+        bio: originalProfile.bio || '',
+        website: originalProfile.website || '',
+        profileImage: originalProfile.profile_image_url,
+        socialLinks: originalProfile.social_links || []
+      });
+      setImagePreview(originalProfile.profile_image_url);
+    } else {
+      setProfileData({
+        username: '',
+        bio: '',
+        website: '',
+        profileImage: null,
+        socialLinks: []
+      });
+      setImagePreview(null);
+    }
   };
 
   const formatWalletAddress = (address: string) => {
@@ -235,6 +325,12 @@ const ProfilePage: React.FC = () => {
 
           {/* Profile Form */}
           <div className="bg-background-card rounded-2xl border border-background-elevated p-8">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-mint"></div>
+                <span className="ml-3 text-text-secondary">Loading profile...</span>
+              </div>
+            ) : (
             {/* Profile Image Section */}
             <div className="text-center mb-8">
               <div className="relative inline-block">
@@ -460,7 +556,7 @@ const ProfilePage: React.FC = () => {
                 </>
               )}
             </div>
-          </div>
+          )}
         </div>
       </main>
 
