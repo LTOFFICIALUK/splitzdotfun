@@ -1,39 +1,142 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowLeft, User, Camera, Twitter, MessageCircle, Globe, Save, X } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  User, 
+  Camera, 
+  Twitter, 
+  MessageCircle, 
+  Globe, 
+  Save, 
+  X,
+  Instagram,
+  Youtube,
+  Twitch,
+  TikTok,
+  Linkedin,
+  Github,
+  Telegram,
+  Discord,
+  Facebook,
+  Reddit,
+  Medium,
+  Patreon,
+  OnlyFans,
+  Snapchat,
+  Pinterest,
+  Spotify,
+  Apple,
+  ChevronDown
+} from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
 
+interface SocialLink {
+  platform: string;
+  handle: string;
+  url: string;
+  icon: React.ReactNode;
+}
+
 interface ProfileData {
   username: string;
   bio: string;
-  twitterHandle: string;
-  discordHandle: string;
   website: string;
   profileImage: string | null;
+  socialLinks: SocialLink[];
 }
+
+const socialPlatforms = [
+  { key: 'twitter', name: 'Twitter/X', icon: <Twitter className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'instagram', name: 'Instagram', icon: <Instagram className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'youtube', name: 'YouTube', icon: <Youtube className="w-4 h-4" />, placeholder: 'Channel name' },
+  { key: 'twitch', name: 'Twitch', icon: <Twitch className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'tiktok', name: 'TikTok', icon: <TikTok className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'linkedin', name: 'LinkedIn', icon: <Linkedin className="w-4 h-4" />, placeholder: 'Profile URL' },
+  { key: 'github', name: 'GitHub', icon: <Github className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'telegram', name: 'Telegram', icon: <Telegram className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'discord', name: 'Discord', icon: <Discord className="w-4 h-4" />, placeholder: 'username#1234' },
+  { key: 'facebook', name: 'Facebook', icon: <Facebook className="w-4 h-4" />, placeholder: 'Profile URL' },
+  { key: 'reddit', name: 'Reddit', icon: <Reddit className="w-4 h-4" />, placeholder: 'u/username' },
+  { key: 'medium', name: 'Medium', icon: <Medium className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'patreon', name: 'Patreon', icon: <Patreon className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'onlyfans', name: 'OnlyFans', icon: <OnlyFans className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'snapchat', name: 'Snapchat', icon: <Snapchat className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'pinterest', name: 'Pinterest', icon: <Pinterest className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'spotify', name: 'Spotify', icon: <Spotify className="w-4 h-4" />, placeholder: 'Artist/Playlist URL' },
+  { key: 'apple', name: 'Apple Music', icon: <Apple className="w-4 h-4" />, placeholder: 'Artist/Playlist URL' },
+];
 
 const ProfilePage: React.FC = () => {
   const { isConnected, publicKey } = useWallet();
   const [profileData, setProfileData] = useState<ProfileData>({
     username: '',
     bio: '',
-    twitterHandle: '',
-    discordHandle: '',
     website: '',
-    profileImage: null
+    profileImage: null,
+    socialLinks: []
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showSocialDropdown, setShowSocialDropdown] = useState(false);
 
   const handleInputChange = (field: keyof ProfileData, value: string) => {
     setProfileData(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const addSocialLink = (platform: string) => {
+    const platformData = socialPlatforms.find(p => p.key === platform);
+    if (platformData) {
+      const newSocialLink: SocialLink = {
+        platform,
+        handle: '',
+        url: '',
+        icon: platformData.icon
+      };
+      setProfileData(prev => ({
+        ...prev,
+        socialLinks: [...prev.socialLinks, newSocialLink]
+      }));
+    }
+    setShowSocialDropdown(false);
+  };
+
+  const updateSocialLink = (index: number, field: 'handle' | 'url', value: string) => {
+    setProfileData(prev => ({
+      ...prev,
+      socialLinks: prev.socialLinks.map((link, i) => 
+        i === index ? { ...link, [field]: value } : link
+      )
+    }));
+  };
+
+  const removeSocialLink = (index: number) => {
+    setProfileData(prev => ({
+      ...prev,
+      socialLinks: prev.socialLinks.filter((_, i) => i !== index)
+    }));
+  };
+
+  const getPlatformName = (platformKey: string) => {
+    return socialPlatforms.find(p => p.key === platformKey)?.name || platformKey;
+  };
+
+  const getPlatformIcon = (platformKey: string) => {
+    return socialPlatforms.find(p => p.key === platformKey)?.icon || <Globe className="w-4 h-4" />;
+  };
+
+  const getPlatformPlaceholder = (platformKey: string) => {
+    return socialPlatforms.find(p => p.key === platformKey)?.placeholder || 'Enter handle';
+  };
+
+  const isPlatformAdded = (platformKey: string) => {
+    return profileData.socialLinks.some(link => link.platform === platformKey);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,44 +327,44 @@ const ProfilePage: React.FC = () => {
 
               {/* Social Links */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-text-primary">Social Links</h3>
-                
-                {/* Twitter */}
-                <div>
-                  <label htmlFor="twitter" className="block text-sm font-medium text-text-primary mb-2">
-                    <div className="flex items-center space-x-2">
-                      <Twitter className="w-4 h-4" />
-                      <span>Twitter Handle</span>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-text-primary">Social Links</h3>
+                  {isEditing && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowSocialDropdown(!showSocialDropdown)}
+                        className="flex items-center space-x-2 px-3 py-1 bg-background-elevated text-text-primary rounded-lg hover:bg-background-dark transition-colors"
+                      >
+                        <span className="text-sm">Add Social</span>
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showSocialDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {/* Social Platform Dropdown */}
+                      {showSocialDropdown && (
+                        <div className="absolute top-full right-0 mt-2 w-64 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                          <div className="py-2">
+                            {socialPlatforms.map((platform) => (
+                              <button
+                                key={platform.key}
+                                onClick={() => addSocialLink(platform.key)}
+                                disabled={isPlatformAdded(platform.key)}
+                                className={`w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3 ${
+                                  isPlatformAdded(platform.key) ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                {platform.icon}
+                                <span className="text-sm">{platform.name}</span>
+                                {isPlatformAdded(platform.key) && (
+                                  <span className="text-xs text-text-secondary ml-auto">Added</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </label>
-                  <input
-                    type="text"
-                    id="twitter"
-                    value={profileData.twitterHandle}
-                    onChange={(e) => handleInputChange('twitterHandle', e.target.value)}
-                    disabled={!isEditing}
-                    placeholder="@username"
-                    className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </div>
-
-                {/* Discord */}
-                <div>
-                  <label htmlFor="discord" className="block text-sm font-medium text-text-primary mb-2">
-                    <div className="flex items-center space-x-2">
-                      <MessageCircle className="w-4 h-4" />
-                      <span>Discord Handle</span>
-                    </div>
-                  </label>
-                  <input
-                    type="text"
-                    id="discord"
-                    value={profileData.discordHandle}
-                    onChange={(e) => handleInputChange('discordHandle', e.target.value)}
-                    disabled={!isEditing}
-                    placeholder="username#1234"
-                    className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
+                  )}
                 </div>
 
                 {/* Website */}
@@ -282,6 +385,41 @@ const ProfilePage: React.FC = () => {
                     className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
+
+                {/* Social Links List */}
+                {profileData.socialLinks.length > 0 && (
+                  <div className="space-y-3">
+                    {profileData.socialLinks.map((link, index) => (
+                      <div key={index} className="bg-background-dark rounded-lg p-4 border border-background-elevated">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            {getPlatformIcon(link.platform)}
+                            <span className="text-sm font-medium text-text-primary">
+                              {getPlatformName(link.platform)}
+                            </span>
+                          </div>
+                          {isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => removeSocialLink(index)}
+                              className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={link.handle}
+                          onChange={(e) => updateSocialLink(index, 'handle', e.target.value)}
+                          disabled={!isEditing}
+                          placeholder={getPlatformPlaceholder(link.platform)}
+                          className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
