@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, Loader2, LogOut, ChevronDown, Settings, FolderOpen } from 'lucide-react';
+import { Wallet, Loader2, LogOut, ChevronDown, User, FolderOpen } from 'lucide-react';
 import { useWallet } from './WalletProvider';
 import Modal from './Modal';
 
@@ -77,10 +77,10 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     alert('View projects functionality coming soon!');
   };
 
-  const handleSettings = () => {
+  const handleProfile = () => {
     setShowDropdown(false);
-    // Navigate to settings page or show settings modal
-    alert('Settings functionality coming soon!');
+    // Navigate to profile page or show profile modal
+    alert('Profile settings functionality coming soon!');
   };
 
   const handleDisconnectClick = () => {
@@ -160,11 +160,11 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
                 <span>View projects</span>
               </button>
               <button
-                onClick={handleSettings}
+                onClick={handleProfile}
                 className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3 whitespace-nowrap"
               >
-                <Settings className="w-4 h-4 flex-shrink-0" />
-                <span>Settings</span>
+                <User className="w-4 h-4 flex-shrink-0" />
+                <span>Profile</span>
               </button>
               <hr className="border-background-elevated my-1" />
               <button
