@@ -333,7 +333,7 @@ const ProfilePage: React.FC = () => {
             ) : (
               <>
                 {/* Profile Image Section */}
-            <div className="text-center mb-8">
+                <div className="text-center mb-8">
               <div className="relative inline-block">
                 <div className="w-32 h-32 rounded-full bg-background-elevated border-4 border-background-elevated overflow-hidden">
                   {imagePreview ? (
