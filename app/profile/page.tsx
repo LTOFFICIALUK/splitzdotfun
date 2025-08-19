@@ -331,7 +331,8 @@ const ProfilePage: React.FC = () => {
                 <span className="ml-3 text-text-secondary">Loading profile...</span>
               </div>
             ) : (
-            {/* Profile Image Section */}
+              <>
+                {/* Profile Image Section */}
             <div className="text-center mb-8">
               <div className="relative inline-block">
                 <div className="w-32 h-32 rounded-full bg-background-elevated border-4 border-background-elevated overflow-hidden">
@@ -556,8 +557,9 @@ const ProfilePage: React.FC = () => {
                 </>
               )}
             </div>
-          )}
-        </div>
+              </>
+            )}
+          </div>
       </main>
 
       <Footer />
