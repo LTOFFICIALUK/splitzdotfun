@@ -25,11 +25,52 @@ const publicKeyToAddress = (publicKeyBytes: Uint8Array): string => {
 };
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-  const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [publicKey, setPublicKey] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('wallet_publicKey');
+    }
+    return null;
+  });
+  const [walletAddress, setWalletAddress] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('wallet_address');
+    }
+    return null;
+  });
+  const [isConnected, setIsConnected] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('wallet_connected') === 'true';
+    }
+    return false;
+  });
   const [isConnecting, setIsConnecting] = useState(false);
   const [wallet, setWallet] = useState<PhantomProvider | null>(null);
+
+  // Persist wallet state to localStorage
+  const persistWalletState = (publicKey: string | null, address: string | null, connected: boolean) => {
+    if (typeof window !== 'undefined') {
+      if (publicKey) {
+        localStorage.setItem('wallet_publicKey', publicKey);
+      } else {
+        localStorage.removeItem('wallet_publicKey');
+      }
+      if (address) {
+        localStorage.setItem('wallet_address', address);
+      } else {
+        localStorage.removeItem('wallet_address');
+      }
+      localStorage.setItem('wallet_connected', connected.toString());
+    }
+  };
+
+  // Clear persisted wallet state
+  const clearPersistedWalletState = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('wallet_publicKey');
+      localStorage.removeItem('wallet_address');
+      localStorage.removeItem('wallet_connected');
+    }
+  };
 
   // Check if Phantom is installed
   const getProvider = (): PhantomProvider | undefined => {
@@ -82,6 +123,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       setIsConnected(true);
       setWallet(provider);
       
+      // Persist wallet state
+      persistWalletState(publicKeyString, address, true);
+      
       console.log('Connected to Phantom wallet:', address);
     } catch (error) {
       console.error('Failed to connect to Phantom wallet:', error);
@@ -102,6 +146,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       setWalletAddress(null);
       setIsConnected(false);
       setWallet(null);
+      
+      // Clear persisted wallet state
+      clearPersistedWalletState();
+      
       console.log('Disconnected from Phantom wallet');
     } catch (error) {
       console.error('Failed to disconnect from Phantom wallet:', error);
@@ -115,14 +163,23 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     if (provider) {
       setWallet(provider);
       
-      // Check if already connected
-      if (provider.publicKey) {
-        const publicKeyBytes = provider.publicKey.toBytes();
-        const publicKeyString = Buffer.from(publicKeyBytes).toString('hex');
-        const address = publicKeyToAddress(publicKeyBytes);
-        setPublicKey(publicKeyString);
-        setWalletAddress(address);
-        setIsConnected(true);
+      // Check if already connected or if we have persisted state
+      if (provider.publicKey || (isConnected && walletAddress)) {
+        if (provider.publicKey) {
+          const publicKeyBytes = provider.publicKey.toBytes();
+          const publicKeyString = Buffer.from(publicKeyBytes).toString('hex');
+          const address = publicKeyToAddress(publicKeyBytes);
+          setPublicKey(publicKeyString);
+          setWalletAddress(address);
+          setIsConnected(true);
+          persistWalletState(publicKeyString, address, true);
+        } else if (isConnected && walletAddress) {
+          // We have persisted state but no active connection, try to reconnect
+          console.log('Attempting to restore wallet connection...');
+          // Don't auto-reconnect, let user manually reconnect if needed
+          setIsConnected(false);
+          clearPersistedWalletState();
+        }
       }
 
       // Listen for account changes
@@ -134,10 +191,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           setPublicKey(publicKeyString);
           setWalletAddress(address);
           setIsConnected(true);
+          persistWalletState(publicKeyString, address, true);
         } else {
           setPublicKey(null);
           setWalletAddress(null);
           setIsConnected(false);
+          clearPersistedWalletState();
         }
       };
 
@@ -146,14 +205,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         setPublicKey(null);
         setWalletAddress(null);
         setIsConnected(false);
+        clearPersistedWalletState();
       };
 
       provider.on('accountChanged', handleAccountChanged);
       provider.on('disconnect', handleDisconnect);
 
       return () => {
-        provider.removeListener?.('accountChanged', handleAccountChanged);
-        provider.removeListener?.('disconnect', handleDisconnect);
+        // Remove event listeners if the provider supports it
+        if (provider && typeof (provider as any).removeListener === 'function') {
+          (provider as any).removeListener('accountChanged', handleAccountChanged);
+          (provider as any).removeListener('disconnect', handleDisconnect);
+        }
       };
     }
   }, []);
