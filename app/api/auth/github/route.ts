@@ -59,9 +59,14 @@ export async function GET(request: NextRequest) {
     }
 
     const tokenData = await tokenResponse.json();
+    console.log('GitHub OAuth: Token response data:', tokenData);
 
     if (tokenData.error) {
-      console.error('GitHub OAuth error:', tokenData.error_description);
+      console.error('GitHub OAuth error:', {
+        error: tokenData.error,
+        error_description: tokenData.error_description,
+        error_uri: tokenData.error_uri
+      });
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=token_exchange_failed`);
     }
 
