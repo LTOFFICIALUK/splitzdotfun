@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     console.log('Kick OAuth callback received:', { 
       code: code ? code.substring(0, 10) + '...' : 'undefined',
       walletAddress,
+      codeVerifier: codeVerifier ? codeVerifier.substring(0, 10) + '...' : 'undefined',
       clientId: process.env.KICK_CLIENT_ID ? 'present' : 'missing',
       hasClientSecret: !!process.env.KICK_CLIENT_SECRET,
       redirectUri: 'https://splitz.fun/api/auth/kick'
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest) {
 
     const tokenData = await tokenResponse.json();
     console.log('Kick OAuth: Token response data:', tokenData);
+    console.log('Kick OAuth: Token exchange successful, proceeding to user info');
 
     if (tokenData.error) {
       console.error('Kick OAuth error:', {
@@ -176,6 +178,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Kick OAuth error:', error);
+    console.error('Kick OAuth error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      error: error
+    });
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=oauth_failed`);
   }
 }
