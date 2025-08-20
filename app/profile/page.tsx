@@ -44,9 +44,9 @@ const generateCodeChallenge = async () => {
   // Hash the verifier with SHA256 for the challenge
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data as BufferSource);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashBase64 = btoa(String.fromCharCode(...hashArray));
+  const hashBase64 = btoa(String.fromCharCode.apply(null, hashArray));
   
   return hashBase64
     .replace(/\+/g, '-')
