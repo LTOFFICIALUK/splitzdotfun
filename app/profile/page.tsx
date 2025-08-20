@@ -470,18 +470,68 @@ const ProfilePage: React.FC = () => {
 
   const handleCancel = () => {
     setIsEditing(false);
-    // Reset to original data
+    // Reset to original data but preserve OAuth verification status
     if (originalProfile) {
-              setProfileData({
-          username: originalProfile.username || '',
-          bio: originalProfile.bio || '',
-          profileImage: originalProfile.profile_image_url,
-          socialLinks: (originalProfile.social_links || []).map(link => ({
-            ...link,
-            isVerified: false // Default to false for existing links
-          }))
-        });
-      setImagePreview(originalProfile.profile_image_url);
+      // Reload profile data to get the latest OAuth verification status
+      const loadProfile = async () => {
+        try {
+          const profile = await getProfile(publicKey!);
+          if (profile) {
+            // Check OAuth verification status for each social link
+            const socialLinksWithVerification = (profile.social_links || []).map(link => {
+              const oauthData = profile.oauth_verifications?.[link.platform];
+              return {
+                ...link,
+                isVerified: oauthData?.is_verified || false,
+                oauthToken: oauthData?.oauth_token,
+                handle: oauthData?.username || link.handle // Use OAuth username if available
+              };
+            });
+
+            // Add social links for verified OAuth platforms that don't have social links yet
+            const verifiedOAuthPlatforms = Object.keys(profile.oauth_verifications || {});
+            const existingPlatforms = (profile.social_links || []).map(link => link.platform);
+            
+            const additionalSocialLinks = verifiedOAuthPlatforms
+              .filter(platform => !existingPlatforms.includes(platform))
+              .map(platform => {
+                const oauthData = profile.oauth_verifications![platform];
+                return {
+                  platform,
+                  handle: oauthData.username || '',
+                  url: `https://${platform.toLowerCase()}.com/${oauthData.username || ''}`,
+                  isVerified: oauthData.is_verified,
+                  oauthToken: oauthData.oauth_token
+                };
+              });
+
+            const allSocialLinks = [...socialLinksWithVerification, ...additionalSocialLinks];
+
+            setProfileData({
+              username: profile.username || '',
+              bio: profile.bio || '',
+              profileImage: profile.profile_image_url,
+              socialLinks: allSocialLinks
+            });
+            setImagePreview(profile.profile_image_url);
+          }
+        } catch (error) {
+          console.error('Error reloading profile on cancel:', error);
+          // Fallback to original data if reload fails
+          setProfileData({
+            username: originalProfile.username || '',
+            bio: originalProfile.bio || '',
+            profileImage: originalProfile.profile_image_url,
+            socialLinks: (originalProfile.social_links || []).map(link => ({
+              ...link,
+              isVerified: false
+            }))
+          });
+          setImagePreview(originalProfile.profile_image_url);
+        }
+      };
+
+      loadProfile();
     } else {
       setProfileData({
         username: '',
