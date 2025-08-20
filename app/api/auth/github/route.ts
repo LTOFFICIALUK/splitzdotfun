@@ -48,7 +48,13 @@ export async function GET(request: NextRequest) {
     });
 
     if (!tokenResponse.ok) {
-      console.error('GitHub token exchange failed:', await tokenResponse.text());
+      const errorText = await tokenResponse.text();
+      console.error('GitHub token exchange failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText,
+        headers: Object.fromEntries(tokenResponse.headers.entries())
+      });
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=token_exchange_failed`);
     }
 
