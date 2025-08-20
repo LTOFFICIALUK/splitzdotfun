@@ -16,19 +16,30 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    console.log('GitHub OAuth callback received:', { 
+      code: code ? code.substring(0, 10) + '...' : 'undefined',
+      state,
+      clientId: process.env.GITHUB_CLIENT_ID,
+      redirectUri: process.env.GITHUB_REDIRECT_URI
+    });
+
     // Exchange code for access token
+    const tokenRequestBody = {
+      client_id: process.env.GITHUB_CLIENT_ID,
+      client_secret: process.env.GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: process.env.GITHUB_REDIRECT_URI
+    };
+
+    console.log('GitHub token request body:', JSON.stringify(tokenRequestBody, null, 2));
+
     const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
-        code,
-        redirect_uri: process.env.GITHUB_REDIRECT_URI
-      })
+      body: JSON.stringify(tokenRequestBody)
     });
 
     if (!tokenResponse.ok) {
@@ -59,12 +70,13 @@ export async function GET(request: NextRequest) {
     const userData = await userResponse.json();
     const username = userData.login;
 
-    // Update the user's profile with verification status
-    const { error } = await supabase.rpc('update_oauth_verification', {
-      wallet_address: state,
-      platform: 'GitHub',
-      is_verified: true,
-      oauth_token: tokenData.access_token
+    // Update the user's profile with verification status and social links
+    const { error } = await supabase.rpc('update_oauth_verification_and_social_links', {
+      p_wallet_address: state,
+      p_platform: 'GitHub',
+      p_is_verified: true,
+      p_oauth_token: tokenData.access_token,
+      p_username: username
     });
 
     if (error) {
