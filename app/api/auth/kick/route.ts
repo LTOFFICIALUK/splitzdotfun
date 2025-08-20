@@ -12,8 +12,21 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state'); // This will contain the wallet address and code_verifier
+  const error = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
   
-  console.log('Kick OAuth callback parameters:', { code: code ? 'present' : 'missing', state: state ? 'present' : 'missing' });
+  console.log('Kick OAuth callback parameters:', { 
+    code: code ? 'present' : 'missing', 
+    state: state ? 'present' : 'missing',
+    error: error || 'none',
+    errorDescription: errorDescription || 'none'
+  });
+  
+  // Check for OAuth errors first
+  if (error) {
+    console.error('Kick OAuth error from authorization server:', { error, errorDescription });
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=oauth_error&error_description=${encodeURIComponent(errorDescription || '')}`);
+  }
   
   if (!code || !state) {
     console.error('Kick OAuth missing parameters:', { code: !!code, state: !!state });
