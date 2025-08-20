@@ -130,13 +130,13 @@ export async function GET(request: NextRequest) {
     console.log('GitHub OAuth: Database update successful');
 
     // Also update social links if they don't exist
-    const { data: existingProfile } = await supabase
+    const { data: profileForSocialLinks } = await supabase
       .from('profiles')
       .select('social_links')
       .eq('wallet_address', state)
       .single();
 
-    const existingSocialLinks = existingProfile?.social_links || [];
+    const existingSocialLinks = profileForSocialLinks?.social_links || [];
     const hasGitHubLink = existingSocialLinks.some((link: any) => link.platform === 'GitHub');
 
     if (!hasGitHubLink) {
