@@ -370,4 +370,4 @@ After understanding the leaderboard:
 3. **Track Progress**: Monitor your performance
 4. **Engage Community**: Build relationships and influence
 
-The leaderboard is your roadmap to success in the SplitzFun ecosystem. Focus on creating value, building community, and maintaining consistency. Your ranking will reflect your contributions and impact! 🚀
+The leaderboard is your roadmap to success in the SplitzFun ecosystem. Focus on creating value, building community, and maintaining consistency. Your ranking will reflect your contributions and impact!

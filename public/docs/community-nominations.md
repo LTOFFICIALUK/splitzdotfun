@@ -337,4 +337,4 @@ After understanding community nominations:
 3. **Contribute**: Build value in the community
 4. **Nominate**: Submit proposals for deserving contributors
 
-The community nominations system empowers token holders to shape the future of their tokens. Participate actively and help build a fair, transparent, and rewarding ecosystem! 🚀
+The community nominations system empowers token holders to shape the future of their tokens. Participate actively and help build a fair, transparent, and rewarding ecosystem!

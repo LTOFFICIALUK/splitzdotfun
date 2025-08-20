@@ -12,8 +12,8 @@ export interface Token {
 export interface LeaderboardEntry {
   handle: string;
   avatarUrl: string;
-  followers: number;
-  earnings: number;
+  earnedSOL: number;
+  tokenTicker: string;
 }
 
 // Wallet-related types

@@ -22,7 +22,13 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [isErrorVisible, setIsErrorVisible] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Auto-dismiss error after 3 seconds with fade animation
   useEffect(() => {
@@ -73,8 +79,7 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
 
   const handleViewProjects = () => {
     setShowDropdown(false);
-    // Navigate to projects page or show projects modal
-    alert('View projects functionality coming soon!');
+    window.location.href = '/projects';
   };
 
   const handleProfile = () => {
@@ -86,8 +91,6 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     setShowDropdown(false);
     setShowDisconnectModal(true);
   };
-
-
 
   const handleConfirmDisconnect = async () => {
     try {
@@ -125,6 +128,16 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     if (address.length <= 12) return address;
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
+
+  // Show loading state while mounting to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <button className={getButtonClasses()} disabled>
+        <Wallet className="w-4 h-4" />
+        <span>Connect Wallet</span>
+      </button>
+    );
+  }
 
   if (isConnecting || showConnectModal) {
     return (

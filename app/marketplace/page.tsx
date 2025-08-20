@@ -121,7 +121,16 @@ export default function MarketplacePage() {
   ];
 
   const listings = marketplaceData.filter(item => item.type === 'listing');
-  const auctions = marketplaceData.filter(item => item.type === 'auction');
+  const auctions = marketplaceData.filter(item => 
+    item.type === 'auction' && 
+    item.timeLeft && 
+    item.bids !== undefined && 
+    item.endTime
+  ) as (MarketplaceListing & {
+    timeLeft: string;
+    bids: number;
+    endTime: string;
+  })[];
 
   const stats = [
     {

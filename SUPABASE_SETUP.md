@@ -30,7 +30,7 @@ That's it! No need for complex authentication, RLS policies, or additional envir
 
 ## What This Gives You
 
-- ✅ Profile data storage (username, bio, social links)
-- ✅ Profile image upload and storage
-- ✅ Simple CRUD operations for profiles
-- ✅ No complex authentication setup required
+- Profile data storage (username, bio, social links)
+- Profile image upload and storage
+- Simple CRUD operations for profiles
+- No complex authentication setup required

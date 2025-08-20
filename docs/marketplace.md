@@ -407,4 +407,4 @@ After exploring the marketplace:
 3. **Engage Community**: Participate in token communities
 4. **Track Performance**: Monitor your investments regularly
 
-The marketplace is your gateway to owning pieces of the future. Happy trading! 🚀
+The marketplace is your gateway to owning pieces of the future. Happy trading!

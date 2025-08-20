@@ -25,26 +25,12 @@ const publicKeyToAddress = (publicKeyBytes: Uint8Array): string => {
 };
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-  const [publicKey, setPublicKey] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('wallet_publicKey');
-    }
-    return null;
-  });
-  const [walletAddress, setWalletAddress] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('wallet_address');
-    }
-    return null;
-  });
-  const [isConnected, setIsConnected] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('wallet_connected') === 'true';
-    }
-    return false;
-  });
+  const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [wallet, setWallet] = useState<PhantomProvider | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   // Persist wallet state to localStorage
   const persistWalletState = (publicKey: string | null, address: string | null, connected: boolean) => {
@@ -93,25 +79,25 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         throw new Error('Phantom wallet is not installed. Please install it from https://phantom.app/');
       }
 
-      // Force disconnect any existing connection
+      // If already connected, just restore the state
       if (provider.publicKey) {
-        try {
-          await provider.disconnect();
-          // Wait a bit to ensure disconnect is processed
-          await new Promise(resolve => setTimeout(resolve, 200));
-        } catch (error) {
-          console.log('Disconnect before reconnect failed, continuing...', error);
-        }
+        const publicKeyBytes = provider.publicKey.toBytes();
+        const publicKeyString = Buffer.from(publicKeyBytes).toString('hex');
+        const address = publicKeyToAddress(publicKeyBytes);
+        
+        setPublicKey(publicKeyString);
+        setWalletAddress(address);
+        setIsConnected(true);
+        setWallet(provider);
+        
+        // Persist wallet state
+        persistWalletState(publicKeyString, address, true);
+        
+        console.log('Restored existing Phantom wallet connection:', address);
+        return;
       }
 
-      // Clear all local state
-      setPublicKey(null);
-      setWalletAddress(null);
-      setIsConnected(false);
-      setWallet(null);
-
-      // Force a completely fresh connection by creating a new connection request
-      // This should bypass any cached connection state
+      // Connect to wallet
       const response = await provider.connect();
       
       const publicKeyBytes = response.publicKey.toBytes();
@@ -159,12 +145,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   // Initialize wallet connection on mount
   useEffect(() => {
-    const provider = getProvider();
-    if (provider) {
-      setWallet(provider);
-      
-      // Check if already connected or if we have persisted state
-      if (provider.publicKey || (isConnected && walletAddress)) {
+    setMounted(true);
+    
+    const initializeWallet = async () => {
+      const provider = getProvider();
+      if (provider) {
+        setWallet(provider);
+        
+        // Check if already connected
         if (provider.publicKey) {
           const publicKeyBytes = provider.publicKey.toBytes();
           const publicKeyString = Buffer.from(publicKeyBytes).toString('hex');
@@ -173,57 +161,84 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           setWalletAddress(address);
           setIsConnected(true);
           persistWalletState(publicKeyString, address, true);
-        } else if (isConnected && walletAddress) {
-          // We have persisted state but no active connection, try to reconnect
-          console.log('Attempting to restore wallet connection...');
-          // Don't auto-reconnect, let user manually reconnect if needed
-          setIsConnected(false);
-          clearPersistedWalletState();
+        } else if (typeof window !== 'undefined') {
+          // Check localStorage for persisted state
+          const persistedConnected = localStorage.getItem('wallet_connected') === 'true';
+          const persistedAddress = localStorage.getItem('wallet_address');
+          
+          if (persistedConnected && persistedAddress) {
+            // We have persisted state but no active connection, try to auto-reconnect
+            console.log('Attempting to restore wallet connection...');
+            try {
+              await connect();
+            } catch (error) {
+              console.log('Auto-reconnect failed, clearing persisted state');
+              setIsConnected(false);
+              clearPersistedWalletState();
+            }
+          }
         }
-      }
 
-      // Listen for account changes
-      const handleAccountChanged = (publicKey: any) => {
-        if (publicKey) {
-          const publicKeyBytes = publicKey.toBytes();
-          const publicKeyString = Buffer.from(publicKeyBytes).toString('hex');
-          const address = publicKeyToAddress(publicKeyBytes);
-          setPublicKey(publicKeyString);
-          setWalletAddress(address);
-          setIsConnected(true);
-          persistWalletState(publicKeyString, address, true);
-        } else {
+        // Listen for account changes
+        const handleAccountChanged = (publicKey: any) => {
+          if (publicKey) {
+            const publicKeyBytes = publicKey.toBytes();
+            const publicKeyString = Buffer.from(publicKeyBytes).toString('hex');
+            const address = publicKeyToAddress(publicKeyBytes);
+            setPublicKey(publicKeyString);
+            setWalletAddress(address);
+            setIsConnected(true);
+            persistWalletState(publicKeyString, address, true);
+          } else {
+            setPublicKey(null);
+            setWalletAddress(null);
+            setIsConnected(false);
+            clearPersistedWalletState();
+          }
+        };
+
+        // Listen for disconnect
+        const handleDisconnect = () => {
           setPublicKey(null);
           setWalletAddress(null);
           setIsConnected(false);
           clearPersistedWalletState();
-        }
-      };
+        };
 
-      // Listen for disconnect
-      const handleDisconnect = () => {
-        setPublicKey(null);
-        setWalletAddress(null);
-        setIsConnected(false);
-        clearPersistedWalletState();
-      };
+        // Listen for connect (when user manually connects)
+        const handleConnect = (publicKey: any) => {
+          if (publicKey) {
+            const publicKeyBytes = publicKey.toBytes();
+            const publicKeyString = Buffer.from(publicKeyBytes).toString('hex');
+            const address = publicKeyToAddress(publicKeyBytes);
+            setPublicKey(publicKeyString);
+            setWalletAddress(address);
+            setIsConnected(true);
+            persistWalletState(publicKeyString, address, true);
+          }
+        };
 
-      provider.on('accountChanged', handleAccountChanged);
-      provider.on('disconnect', handleDisconnect);
+        provider.on('accountChanged', handleAccountChanged);
+        provider.on('disconnect', handleDisconnect);
+        provider.on('connect', handleConnect);
 
-      return () => {
-        // Remove event listeners if the provider supports it
-        if (provider && typeof (provider as any).removeListener === 'function') {
-          (provider as any).removeListener('accountChanged', handleAccountChanged);
-          (provider as any).removeListener('disconnect', handleDisconnect);
-        }
-      };
-    }
+        return () => {
+          // Remove event listeners if the provider supports it
+          if (provider && typeof (provider as any).removeListener === 'function') {
+            (provider as any).removeListener('accountChanged', handleAccountChanged);
+            (provider as any).removeListener('disconnect', handleDisconnect);
+            (provider as any).removeListener('connect', handleConnect);
+          }
+        };
+      }
+    };
+
+    initializeWallet();
   }, []);
 
   const value: WalletContextState = {
     publicKey: walletAddress, // Return wallet address instead of public key
-    isConnected,
+    isConnected: mounted ? isConnected : false, // Only show connected state after mount
     isConnecting,
     connect,
     disconnect,

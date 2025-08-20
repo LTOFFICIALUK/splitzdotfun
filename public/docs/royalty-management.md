@@ -371,4 +371,4 @@ After setting up your royalty distribution:
 3. **Engage Community**: Build relationships with recipients
 4. **Scale Success**: Expand successful distribution models
 
-Remember: Royalty management is an ongoing process. The most successful tokens continuously optimize their distribution to maximize value for all participants. 🚀
+Remember: Royalty management is an ongoing process. The most successful tokens continuously optimize their distribution to maximize value for all participants.

@@ -2,7 +2,7 @@
 
 A modern, dark-themed Solana launchpad with royalty routing, management delegation, ownership marketplace, and community-driven features.
 
-## 🎯 Product Concept
+## Product Concept
 
 SplitzFun is a Solana launchpad that transforms how tokens are launched, managed, and monetized:
 
@@ -67,7 +67,7 @@ splitzdotfun/
 └── package.json             # Dependencies and scripts
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js 18+ 
@@ -92,7 +92,7 @@ npm run dev
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 
-## 🎨 Design System
+## Design System
 
 ### Colors
 ```css
@@ -118,14 +118,14 @@ All components follow consistent patterns:
 - **Responsive**: Mobile-first design with breakpoint considerations
 - **Type-safe**: Full TypeScript support with proper interfaces
 
-## 📱 Responsive Design
+## Responsive Design
 
 The application is fully responsive with breakpoints:
 - **Mobile**: < 640px
 - **Tablet**: 640px - 1024px  
 - **Desktop**: > 1024px
 
-## 🔧 Customization
+## Customization
 
 ### Adding New Components
 1. Create component in appropriate directory (`ui/` or `sections/`)

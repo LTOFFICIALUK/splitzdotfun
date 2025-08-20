@@ -349,4 +349,4 @@ We're here to help you succeed on SplitzFun. By following these guidelines and p
 - **Be Respectful**: Treat support staff and community members courteously
 - **Stay Informed**: Keep up with platform updates and documentation
 
-Thank you for being part of the SplitzFun community! 🚀
+Thank you for being part of the SplitzFun community!

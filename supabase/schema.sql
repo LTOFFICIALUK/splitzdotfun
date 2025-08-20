@@ -1,10 +1,14 @@
+-- Drop existing objects if they exist
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+DROP FUNCTION IF EXISTS update_updated_at_column();
+DROP TABLE IF EXISTS profiles;
+
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   wallet_address TEXT UNIQUE NOT NULL,
   username TEXT,
   bio TEXT,
-  website TEXT,
   profile_image_url TEXT,
   social_links JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -28,7 +32,77 @@ CREATE TRIGGER update_profiles_updated_at
   FOR EACH ROW 
   EXECUTE FUNCTION update_updated_at_column();
 
+-- Enable RLS and add permissive policies for profiles (public demo)
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'Public read profiles'
+  ) THEN
+    CREATE POLICY "Public read profiles" ON profiles
+      FOR SELECT USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'Public insert profiles'
+  ) THEN
+    CREATE POLICY "Public insert profiles" ON profiles
+      FOR INSERT WITH CHECK (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'Public update profiles'
+  ) THEN
+    CREATE POLICY "Public update profiles" ON profiles
+      FOR UPDATE USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
 -- Create storage bucket for profile images
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('profile-images', 'profile-images', true)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
+VALUES (
+  'profile-images', 
+  'profile-images', 
+  true, 
+  5242880, -- 5MB limit
+  ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- Enable RLS for storage.objects and add policies for the profile-images bucket
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public read profile-images'
+  ) THEN
+    CREATE POLICY "Public read profile-images" ON storage.objects
+      FOR SELECT USING (bucket_id = 'profile-images');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public insert profile-images'
+  ) THEN
+    CREATE POLICY "Public insert profile-images" ON storage.objects
+      FOR INSERT WITH CHECK (bucket_id = 'profile-images');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public update profile-images'
+  ) THEN
+    CREATE POLICY "Public update profile-images" ON storage.objects
+      FOR UPDATE USING (bucket_id = 'profile-images') WITH CHECK (bucket_id = 'profile-images');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public delete profile-images'
+  ) THEN
+    CREATE POLICY "Public delete profile-images" ON storage.objects
+      FOR DELETE USING (bucket_id = 'profile-images');
+  END IF;
+END $$;

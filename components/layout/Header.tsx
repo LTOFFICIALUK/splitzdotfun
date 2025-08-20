@@ -150,7 +150,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
         <div className="h-px bg-background-elevated/50"></div>
       </header>
       
-      <Modal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)}>
+      <Modal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} title="Search">
         <SearchBar onSearch={handleSearch} />
       </Modal>
     </>

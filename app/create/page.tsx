@@ -1,10 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ArrowLeft, Upload, X, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  ArrowLeft, 
+  Upload, 
+  X, 
+  Image as ImageIcon, 
+  Plus, 
+  Trash2,
+  ChevronDown,
+  MessageCircle,
+  Users,
+  Shield,
+  Heart,
+  Wallet,
+  Video,
+  Music
+} from 'lucide-react';
+import { 
+  FaXTwitter, 
+  FaInstagram, 
+  FaYoutube, 
+  FaTwitch, 
+  FaLinkedin, 
+  FaGithub, 
+  FaTiktok
+} from 'react-icons/fa6';
+import { 
+  SiKick, 
+  SiRumble 
+} from 'react-icons/si';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
+import { getProfile, Profile } from '@/lib/supabase';
 
 interface RoyaltyRecipient {
   id: string;
@@ -12,7 +41,30 @@ interface RoyaltyRecipient {
   identifier: string;
   percentage: number;
   label: string;
+  isManager: boolean;
+  role: string;
 }
+
+const SOCIAL_PLATFORMS = [
+  { key: 'X', name: 'X', icon: <FaXTwitter className="w-4 h-4" /> },
+  { key: 'Instagram', name: 'Instagram', icon: <FaInstagram className="w-4 h-4" /> },
+  { key: 'Instagram Threads', name: 'Instagram Threads', icon: <MessageCircle className="w-4 h-4" /> },
+  { key: 'TikTok', name: 'TikTok', icon: <FaTiktok className="w-4 h-4" /> },
+  { key: 'YouTube', name: 'YouTube', icon: <FaYoutube className="w-4 h-4" /> },
+  { key: 'GitHub', name: 'GitHub', icon: <FaGithub className="w-4 h-4" /> },
+  { key: 'LinkedIn', name: 'LinkedIn', icon: <FaLinkedin className="w-4 h-4" /> },
+  { key: 'Twitch', name: 'Twitch', icon: <FaTwitch className="w-4 h-4" /> },
+  { key: 'Kick', name: 'Kick', icon: <SiKick className="w-4 h-4" /> },
+  { key: 'Rumble', name: 'Rumble', icon: <SiRumble className="w-4 h-4" /> }
+] as const;
+
+const ROLES = [
+  { key: 'Marketing', name: 'Marketing', icon: <MessageCircle className="w-4 h-4" /> },
+  { key: 'Influencer', name: 'Influencer', icon: <Users className="w-4 h-4" /> },
+  { key: 'Team', name: 'Team', icon: <Users className="w-4 h-4" /> },
+  { key: 'Management', name: 'Management', icon: <Shield className="w-4 h-4" /> },
+  { key: 'Community', name: 'Community', icon: <Heart className="w-4 h-4" /> }
+] as const;
 
 const CreateCoin: React.FC = () => {
   const { isConnected, publicKey } = useWallet();
@@ -25,18 +77,80 @@ const CreateCoin: React.FC = () => {
     bannerUrl: '',
     initialBuyAmount: '0.01'
   });
+  const [openDropdowns, setOpenDropdowns] = useState<{ [key: string]: boolean }>({});
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [royaltyRecipients, setRoyaltyRecipients] = useState<RoyaltyRecipient[]>([
     {
       id: '1',
       type: 'wallet',
       identifier: publicKey || '',
       percentage: 100,
-      label: 'You (Creator)'
+      label: 'You (Creator)',
+      isManager: true,
+      role: ''
     }
   ]);
+
+  // Load user profile when wallet is connected
+  const loadUserProfile = async () => {
+    if (publicKey) {
+      setIsLoadingProfile(true);
+      try {
+        const profile = await getProfile(publicKey);
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    }
+  };
+
+  // Load profile when wallet connects
+  useEffect(() => {
+    if (isConnected && publicKey) {
+      loadUserProfile();
+    }
+  }, [isConnected, publicKey]);
+
+  // Handle click outside dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      
+      Object.keys(openDropdowns).forEach(dropdownKey => {
+        const dropdownRef = dropdownRefs.current[dropdownKey];
+        if (dropdownRef && !dropdownRef.contains(target)) {
+          setOpenDropdowns(prev => ({ ...prev, [dropdownKey]: false }));
+        }
+      });
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openDropdowns]);
+
+  // Get user's connected social platforms
+  const getUserSocialPlatforms = () => {
+    if (!userProfile?.social_links) return [];
+    
+    return userProfile.social_links.map(link => {
+      const platform = SOCIAL_PLATFORMS.find(p => p.key.toLowerCase() === link.platform.toLowerCase());
+      return {
+        ...link,
+        platformKey: platform?.key || link.platform,
+        platformName: platform?.name || link.platform,
+        platformIcon: platform?.icon || <MessageCircle className="w-4 h-4" />
+      };
+    });
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -100,7 +214,9 @@ const CreateCoin: React.FC = () => {
       type: 'wallet',
       identifier: '',
       percentage: 0,
-      label: ''
+      label: '',
+      isManager: false,
+      role: ''
     };
     setRoyaltyRecipients(prev => [...prev, newRecipient]);
   };
@@ -123,9 +239,9 @@ const CreateCoin: React.FC = () => {
     });
   };
 
-  const updateRoyaltyRecipient = (id: string, field: keyof RoyaltyRecipient, value: string | number) => {
+  const updateRoyaltyRecipient = (id: string, field: keyof RoyaltyRecipient, value: string | number | boolean) => {
     if (field === 'percentage') {
-      const numValue = typeof value === 'string' ? parseInt(value) || 0 : value;
+      const numValue = typeof value === 'string' ? parseInt(value) || 0 : value as number;
       
       // Calculate what the total would be if we update this recipient
       const currentTotal = getTotalPercentage();
@@ -143,6 +259,12 @@ const CreateCoin: React.FC = () => {
       setRoyaltyRecipients(prev => prev.map(recipient => 
         recipient.id === id ? { ...recipient, [field]: clampedValue } : recipient
       ));
+    } else if (field === 'isManager') {
+      // When setting a new manager, remove management from all other recipients
+      setRoyaltyRecipients(prev => prev.map(recipient => ({
+        ...recipient,
+        isManager: recipient.id === id ? value as boolean : false
+      })));
     } else {
       setRoyaltyRecipients(prev => prev.map(recipient => 
         recipient.id === id ? { ...recipient, [field]: value } : recipient
@@ -165,11 +287,17 @@ const CreateCoin: React.FC = () => {
     }, 2000);
   };
 
+  const hasManagerAssigned = () => {
+    return royaltyRecipients.some(recipient => recipient.isManager);
+  };
+
   const isFormValid = formData.name && 
     formData.symbol && 
     formData.description && 
     formData.imageUrl && 
-    getTotalPercentage() <= 100;
+    getTotalPercentage() <= 100 &&
+    hasManagerAssigned() &&
+    royaltyRecipients.every(recipient => recipient.role);
 
   return (
     <div className="min-h-screen bg-background-dark">
@@ -350,7 +478,7 @@ const CreateCoin: React.FC = () => {
               </div>
               
               <p className="text-text-secondary text-sm mb-6">
-                Configure how royalties are distributed when your token is traded. You can keep 100% or share with other creators, influencers, or community members.
+                Configure how royalties are distributed when your token is traded. You can keep 100% or share with other creators, influencers, or community members. You can also assign token management to any recipient - only one person can be the manager at a time.
               </p>
               
               {/* Total Percentage Display */}
@@ -384,6 +512,8 @@ const CreateCoin: React.FC = () => {
                 </div>
               </div>
 
+
+
               <div className="space-y-4">
                 {royaltyRecipients.map((recipient, index) => (
                   <div key={recipient.id} className="bg-background-dark rounded-lg p-4 border border-background-elevated">
@@ -392,6 +522,11 @@ const CreateCoin: React.FC = () => {
                         <span className="text-sm font-medium text-text-primary">
                           {index === 0 ? 'You (Creator)' : `Recipient ${index + 1}`}
                         </span>
+                        {recipient.isManager && (
+                          <span className="text-xs bg-primary-mint/20 text-primary-mint px-2 py-1 rounded-full">
+                            Manager
+                          </span>
+                        )}
                         {index > 0 && (
                           <button
                             type="button"
@@ -407,35 +542,135 @@ const CreateCoin: React.FC = () => {
                       </span>
                     </div>
                     
-                    {index > 0 && (
-                      <div className="mb-3">
-                        <select
-                          value={recipient.type}
-                          onChange={(e) => updateRoyaltyRecipient(recipient.id, 'type', e.target.value as 'wallet' | 'social')}
-                          className="w-full px-3 py-2 pr-8 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint appearance-none bg-no-repeat bg-right"
-                          style={{
-                            backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                            backgroundPosition: 'right 0.5rem center',
-                            backgroundSize: '1.5em 1.5em'
-                          }}
+                    <div className="mb-3">
+                      <div className="relative" ref={(el) => { dropdownRefs.current[`platform-${recipient.id}`] = el; }}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenDropdowns(prev => ({ ...prev, [`platform-${recipient.id}`]: !prev[`platform-${recipient.id}`] }))}
+                          className="w-full px-3 py-2 pr-8 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-between"
                         >
-                          <option value="wallet">Wallet Address</option>
-                          <option value="social">Social Handle</option>
-                        </select>
+                          <span>
+                            {recipient.type === 'wallet' ? 'Wallet Address' : 
+                             recipient.identifier.split(':')[0] || 'Select platform'}
+                          </span>
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                        
+                        {openDropdowns[`platform-${recipient.id}`] && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                            <div className="py-2">
+                              <button
+                                onClick={() => {
+                                  updateRoyaltyRecipient(recipient.id, 'type', 'wallet');
+                                  updateRoyaltyRecipient(recipient.id, 'identifier', '');
+                                  setOpenDropdowns(prev => ({ ...prev, [`platform-${recipient.id}`]: false }));
+                                }}
+                                className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                              >
+                                <Wallet className="w-4 h-4" />
+                                <span className="text-sm">Wallet Address</span>
+                              </button>
+                              
+                              {/* For creator, only show connected platforms */}
+                              {index === 0 ? (
+                                getUserSocialPlatforms().map(platform => (
+                                  <button
+                                    key={platform.platformKey}
+                                    onClick={() => {
+                                      updateRoyaltyRecipient(recipient.id, 'type', 'social');
+                                      updateRoyaltyRecipient(recipient.id, 'identifier', platform.platformKey + ':@' + platform.handle);
+                                      setOpenDropdowns(prev => ({ ...prev, [`platform-${recipient.id}`]: false }));
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                                  >
+                                    {platform.platformIcon}
+                                    <span className="text-sm">{platform.platformName}</span>
+                                    <span className="text-xs text-text-secondary ml-auto">@{platform.handle}</span>
+                                  </button>
+                                ))
+                              ) : (
+                                /* For other recipients, show all platforms */
+                                SOCIAL_PLATFORMS.map(platform => (
+                                  <button
+                                    key={platform.key}
+                                    onClick={() => {
+                                      updateRoyaltyRecipient(recipient.id, 'type', 'social');
+                                      updateRoyaltyRecipient(recipient.id, 'identifier', platform.key + ':');
+                                      setOpenDropdowns(prev => ({ ...prev, [`platform-${recipient.id}`]: false }));
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                                  >
+                                    {platform.icon}
+                                    <span className="text-sm">{platform.name}</span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                     
                     {index > 0 && (
                       <div className="mb-3">
                         <input
                           type="text"
-                          value={recipient.identifier}
-                          onChange={(e) => updateRoyaltyRecipient(recipient.id, 'identifier', e.target.value)}
-                          placeholder={recipient.type === 'wallet' ? 'Enter wallet address' : 'Enter social handle (e.g., @username)'}
+                          value={recipient.type === 'wallet' ? recipient.identifier : recipient.identifier.split(':')[1] || ''}
+                          onChange={(e) => {
+                            if (recipient.type === 'wallet') {
+                              updateRoyaltyRecipient(recipient.id, 'identifier', e.target.value);
+                            } else {
+                              const platform = recipient.identifier.split(':')[0] || 'X';
+                              updateRoyaltyRecipient(recipient.id, 'identifier', platform + ':' + e.target.value);
+                            }
+                          }}
+                          placeholder={recipient.type === 'wallet' ? 'Enter wallet address' : (() => {
+                            const platform = recipient.identifier.split(':')[0];
+                            if (platform === 'LinkedIn') return 'Enter profile URL (e.g., linkedin.com/in/username)';
+                            if (platform === 'GitHub') return 'Enter profile URL (e.g., github.com/username)';
+                            if (platform === 'YouTube') return 'Enter channel link (e.g., youtube.com/@channel)';
+                            return 'Enter username (e.g., @username)';
+                          })()}
                           className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint"
                         />
                       </div>
                     )}
+                    
+                    <div className="mb-3">
+                      <div className="relative" ref={(el) => { dropdownRefs.current[`role-${recipient.id}`] = el; }}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenDropdowns(prev => ({ ...prev, [`role-${recipient.id}`]: !prev[`role-${recipient.id}`] }))}
+                          disabled={recipient.isManager}
+                          className={`w-full px-3 py-2 pr-8 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-between ${
+                            recipient.isManager ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          <span>{recipient.role || 'Select role'}</span>
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                        
+                        {openDropdowns[`role-${recipient.id}`] && !recipient.isManager && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                            <div className="py-2">
+                              {ROLES.map(role => (
+                                <button
+                                  key={role.key}
+                                  onClick={() => {
+                                    updateRoyaltyRecipient(recipient.id, 'role', role.key);
+                                    setOpenDropdowns(prev => ({ ...prev, [`role-${recipient.id}`]: false }));
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                                >
+                                  {role.icon}
+                                  <span className="text-sm">{role.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     
                     <div className="flex items-center space-x-3">
                       <input
@@ -458,6 +693,30 @@ const CreateCoin: React.FC = () => {
                         onChange={(e) => updateRoyaltyRecipient(recipient.id, 'percentage', parseInt(e.target.value) || 0)}
                         className="w-16 px-2 py-1 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary-mint"
                       />
+                    </div>
+                    
+                    {/* Management Toggle */}
+                    <div className="mt-3 pt-3 border-t border-background-elevated">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-text-primary">Token Management</span>
+                          <span className="text-xs text-text-secondary">(Controls token settings & updates)</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={recipient.isManager}
+                            onChange={(e) => updateRoyaltyRecipient(recipient.id, 'isManager', e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-background-elevated peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-mint rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-mint"></div>
+                        </label>
+                      </div>
+                      {recipient.isManager && (
+                        <p className="text-xs text-primary-mint mt-1">
+                          ✓ This recipient will have management control over the token
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}

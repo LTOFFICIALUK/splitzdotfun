@@ -10,10 +10,10 @@ interface MarkdownRendererProps {
 
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      className="prose prose-invert max-w-none"
-      components={{
+    <div className="prose prose-invert max-w-none">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
         h1: ({ children }) => (
           <h1 className="text-3xl font-bold text-text-primary mb-6 mt-8 first:mt-0">
             {children}
@@ -138,6 +138,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
     >
       {content}
     </ReactMarkdown>
+    </div>
   );
 };
 

@@ -133,9 +133,24 @@ const MyTokens: React.FC = () => {
               {mockTokens.map((token) => (
                 <TokenCard
                   key={token.id}
-                  token={token}
-                  onClaim={() => handleClaim(token.id)}
-                  onManage={() => handleManage(token.id)}
+                  logo={token.logoUrl}
+                  name={token.name}
+                  ticker={token.ticker}
+                  shortAddress={token.address.slice(0, 8) + '...' + token.address.slice(-8)}
+                  mcap={token.mcap}
+                  change={token.change24h}
+                  actions={[
+                    {
+                      label: 'Claim',
+                      onClick: () => handleClaim(token.id),
+                      variant: 'primary' as const,
+                    },
+                    {
+                      label: 'Manage',
+                      onClick: () => handleManage(token.id),
+                      variant: 'secondary' as const,
+                    },
+                  ]}
                 />
               ))}
             </div>

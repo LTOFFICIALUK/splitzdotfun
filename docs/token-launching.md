@@ -152,12 +152,12 @@ This is where SplitzFun shines. Configure how royalties will be distributed amon
 ### Step 7: Review and Launch
 
 **Final Checklist:**
-- ✅ Wallet connected with sufficient SOL
-- ✅ Token images uploaded and look good
-- ✅ Token details are accurate and engaging
-- ✅ Royalty distribution is configured
-- ✅ Social links are correct
-- ✅ Initial buy amount is set
+- Wallet connected with sufficient SOL
+- Token images uploaded and look good
+- Token details are accurate and engaging
+- Royalty distribution is configured
+- Social links are correct
+- Initial buy amount is set
 
 **Launch Process:**
 1. Click "Launch Token"
@@ -365,4 +365,4 @@ After successfully launching your token:
 3. **Check the [Leaderboard](./leaderboard.md)**
 4. **Learn about [Community Governance](./community-nominations.md)**
 
-Congratulations on launching your token! You're now part of the future of social finance. 🚀
+Congratulations on launching your token! You're now part of the future of social finance.

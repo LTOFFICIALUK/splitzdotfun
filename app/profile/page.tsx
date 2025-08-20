@@ -5,69 +5,55 @@ import {
   ArrowLeft, 
   User, 
   Camera, 
-  Twitter, 
   MessageCircle, 
-  Globe, 
-  Save, 
+  Save,
   X,
-  Instagram,
-  Youtube,
-  Twitch,
-  TikTok,
-  Linkedin,
-  Github,
-  Telegram,
-  Discord,
-  Facebook,
-  Reddit,
-  Medium,
-  Patreon,
-  OnlyFans,
-  Snapchat,
-  Pinterest,
-  Spotify,
-  Apple,
   ChevronDown
 } from 'lucide-react';
+import { 
+  FaXTwitter, 
+  FaInstagram, 
+  FaYoutube, 
+  FaTwitch, 
+  FaLinkedin, 
+  FaGithub, 
+  FaTiktok
+} from 'react-icons/fa6';
+import { 
+  SiKick, 
+  SiRumble 
+} from 'react-icons/si';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
-import { getProfile, createProfile, updateProfile, uploadProfileImage, Profile } from '@/lib/supabase';
+import { getProfile, createProfile, updateProfile, uploadProfileImage, testBucketAccess, testSupabaseConfig, Profile } from '@/lib/supabase';
 
-interface SocialLink {
+interface ProfileSocialLink {
   platform: string;
   handle: string;
   url: string;
-  icon: React.ReactNode;
+  isVerified: boolean;
+  oauthToken?: string;
 }
 
 interface ProfileData {
   username: string;
   bio: string;
-  website: string;
   profileImage: string | null;
-  socialLinks: SocialLink[];
+  socialLinks: ProfileSocialLink[];
 }
 
 const socialPlatforms = [
-  { key: 'twitter', name: 'Twitter/X', icon: <Twitter className="w-4 h-4" />, placeholder: '@username' },
-  { key: 'instagram', name: 'Instagram', icon: <Instagram className="w-4 h-4" />, placeholder: '@username' },
-  { key: 'youtube', name: 'YouTube', icon: <Youtube className="w-4 h-4" />, placeholder: 'Channel name' },
-  { key: 'twitch', name: 'Twitch', icon: <Twitch className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'tiktok', name: 'TikTok', icon: <TikTok className="w-4 h-4" />, placeholder: '@username' },
-  { key: 'linkedin', name: 'LinkedIn', icon: <Linkedin className="w-4 h-4" />, placeholder: 'Profile URL' },
-  { key: 'github', name: 'GitHub', icon: <Github className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'telegram', name: 'Telegram', icon: <Telegram className="w-4 h-4" />, placeholder: '@username' },
-  { key: 'discord', name: 'Discord', icon: <Discord className="w-4 h-4" />, placeholder: 'username#1234' },
-  { key: 'facebook', name: 'Facebook', icon: <Facebook className="w-4 h-4" />, placeholder: 'Profile URL' },
-  { key: 'reddit', name: 'Reddit', icon: <Reddit className="w-4 h-4" />, placeholder: 'u/username' },
-  { key: 'medium', name: 'Medium', icon: <Medium className="w-4 h-4" />, placeholder: '@username' },
-  { key: 'patreon', name: 'Patreon', icon: <Patreon className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'onlyfans', name: 'OnlyFans', icon: <OnlyFans className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'snapchat', name: 'Snapchat', icon: <Snapchat className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'pinterest', name: 'Pinterest', icon: <Pinterest className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'spotify', name: 'Spotify', icon: <Spotify className="w-4 h-4" />, placeholder: 'Artist/Playlist URL' },
-  { key: 'apple', name: 'Apple Music', icon: <Apple className="w-4 h-4" />, placeholder: 'Artist/Playlist URL' },
+  { key: 'X', name: 'X', icon: <FaXTwitter className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'Instagram', name: 'Instagram', icon: <FaInstagram className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'Instagram Threads', name: 'Instagram Threads', icon: <MessageCircle className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'TikTok', name: 'TikTok', icon: <FaTiktok className="w-4 h-4" />, placeholder: '@username' },
+  { key: 'YouTube', name: 'YouTube', icon: <FaYoutube className="w-4 h-4" />, placeholder: 'Channel name' },
+  { key: 'GitHub', name: 'GitHub', icon: <FaGithub className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'LinkedIn', name: 'LinkedIn', icon: <FaLinkedin className="w-4 h-4" />, placeholder: 'Profile URL' },
+  { key: 'Twitch', name: 'Twitch', icon: <FaTwitch className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'Kick', name: 'Kick', icon: <SiKick className="w-4 h-4" />, placeholder: 'username' },
+  { key: 'Rumble', name: 'Rumble', icon: <SiRumble className="w-4 h-4" />, placeholder: 'username' },
 ];
 
 const ProfilePage: React.FC = () => {
@@ -75,7 +61,6 @@ const ProfilePage: React.FC = () => {
   const [profileData, setProfileData] = useState<ProfileData>({
     username: '',
     bio: '',
-    website: '',
     profileImage: null,
     socialLinks: []
   });
@@ -96,11 +81,11 @@ const ProfilePage: React.FC = () => {
   const addSocialLink = (platform: string) => {
     const platformData = socialPlatforms.find(p => p.key === platform);
     if (platformData) {
-      const newSocialLink: SocialLink = {
+      const newSocialLink: ProfileSocialLink = {
         platform,
         handle: '',
         url: '',
-        icon: platformData.icon
+        isVerified: false
       };
       setProfileData(prev => ({
         ...prev,
@@ -108,6 +93,29 @@ const ProfilePage: React.FC = () => {
       }));
     }
     setShowSocialDropdown(false);
+  };
+
+  const initiateOAuth = async (platform: string) => {
+    if (!publicKey) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    const oauthUrls = {
+      'X': `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/auth/twitter/callback')}&scope=tweet.read%20users.read&state=${publicKey}`,
+      'YouTube': `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_YOUTUBE_REDIRECT_URI || 'https://splitz.fun/auth/youtube/callback')}&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/userinfo.profile&response_type=code&state=${publicKey}`,
+      'GitHub': `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI || 'https://splitz.fun/auth/github/callback')}&scope=read:user&state=${publicKey}`,
+      'Twitch': `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITCH_REDIRECT_URI || 'https://splitz.fun/auth/twitch/callback')}&scope=user:read:email&state=${publicKey}`,
+      'TikTok': `https://www.tiktok.com/v2/auth/authorize?client_key=${process.env.NEXT_PUBLIC_TIKTOK_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TIKTOK_REDIRECT_URI || 'https://splitz.fun/auth/tiktok/callback')}&scope=user.info.basic&response_type=code&state=${publicKey}`
+    };
+    
+    const oauthUrl = oauthUrls[platform as keyof typeof oauthUrls];
+    if (oauthUrl) {
+      window.location.href = oauthUrl;
+    } else {
+      console.error(`OAuth not implemented for ${platform}`);
+      alert(`OAuth verification for ${platform} is not yet implemented.`);
+    }
   };
 
   const updateSocialLink = (index: number, field: 'handle' | 'url', value: string) => {
@@ -131,7 +139,7 @@ const ProfilePage: React.FC = () => {
   };
 
   const getPlatformIcon = (platformKey: string) => {
-    return socialPlatforms.find(p => p.key === platformKey)?.icon || <Globe className="w-4 h-4" />;
+    return socialPlatforms.find(p => p.key === platformKey)?.icon || <FaInstagram className="w-4 h-4" />;
   };
 
   const getPlatformPlaceholder = (platformKey: string) => {
@@ -148,20 +156,27 @@ const ProfilePage: React.FC = () => {
       if (publicKey) {
         setIsLoading(true);
         try {
+          console.log('Loading profile for wallet:', publicKey);
           const profile = await getProfile(publicKey);
           if (profile) {
+            console.log('Profile loaded successfully:', profile);
             setOriginalProfile(profile);
             setProfileData({
               username: profile.username || '',
               bio: profile.bio || '',
-              website: profile.website || '',
               profileImage: profile.profile_image_url,
-              socialLinks: profile.social_links || []
+              socialLinks: (profile.social_links || []).map(link => ({
+                ...link,
+                isVerified: false // Default to false for existing links
+              }))
             });
             setImagePreview(profile.profile_image_url);
+          } else {
+            console.log('No existing profile found for wallet:', publicKey);
           }
         } catch (error) {
           console.error('Error loading profile:', error);
+          // Silently handle error - user will see empty form
         } finally {
           setIsLoading(false);
         }
@@ -169,6 +184,40 @@ const ProfilePage: React.FC = () => {
     };
 
     loadProfile();
+  }, [publicKey]);
+
+  // Handle OAuth callbacks
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verified = urlParams.get('verified');
+    const username = urlParams.get('username');
+    const error = urlParams.get('error');
+
+    if (verified && username && publicKey) {
+      // Update the profile data with verified status
+      setProfileData(prev => ({
+        ...prev,
+        socialLinks: prev.socialLinks.map(link => 
+          link.platform === verified 
+            ? { ...link, isVerified: true, handle: username }
+            : link
+        )
+      }));
+
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Show success message
+      alert(`Successfully verified ${verified} account: ${username}`);
+    }
+
+    if (error) {
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Show error message
+      alert(`OAuth verification failed: ${error}`);
+    }
   }, [publicKey]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,50 +245,88 @@ const ProfilePage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!publicKey) return;
+    if (!publicKey) {
+      console.error('No public key available for saving profile');
+      return;
+    }
+
+    // Check if any social links are unverified
+    const unverifiedLinks = profileData.socialLinks.filter(link => !link.isVerified);
+    if (unverifiedLinks.length > 0) {
+      alert('Please verify ownership of all connected social accounts before saving.');
+      return;
+    }
     
     setIsSaving(true);
     try {
+      console.log('Starting profile save for wallet:', publicKey);
+      console.log('Current imagePreview:', imagePreview);
+      console.log('Original profile image:', originalProfile?.profile_image_url);
+      
       // Handle image upload if there's a new image
       let profileImageUrl = profileData.profileImage;
       if (imagePreview && imagePreview !== originalProfile?.profile_image_url) {
+        console.log('Processing new profile image...');
         // Convert base64 to file if needed
         if (imagePreview.startsWith('data:')) {
-          const response = await fetch(imagePreview);
-          const blob = await response.blob();
-          const file = new File([blob], 'profile-image.jpg', { type: 'image/jpeg' });
-          profileImageUrl = await uploadProfileImage(file, publicKey);
+          console.log('Converting base64 image to file...');
+          try {
+            const response = await fetch(imagePreview);
+            const blob = await response.blob();
+            console.log('Blob created:', blob.size, 'bytes, type:', blob.type);
+            
+            const file = new File([blob], 'profile-image.jpg', { type: 'image/jpeg' });
+            console.log('File created:', file.name, file.size, 'bytes');
+            
+            profileImageUrl = await uploadProfileImage(file, publicKey);
+            console.log('Image upload result:', profileImageUrl);
+            
+            if (!profileImageUrl) {
+              console.error('Image upload failed - no URL returned');
+              return;
+            }
+          } catch (imageError) {
+            console.error('Error processing image:', imageError);
+            return;
+          }
+        } else {
+          console.log('Image is already a URL, using directly:', imagePreview);
+          profileImageUrl = imagePreview;
         }
+      } else {
+        console.log('No new image to upload, keeping existing:', profileImageUrl);
       }
 
       const profileDataToSave = {
         wallet_address: publicKey,
         username: profileData.username,
         bio: profileData.bio,
-        website: profileData.website,
         profile_image_url: profileImageUrl,
         social_links: profileData.socialLinks
       };
 
+      console.log('Profile data to save:', profileDataToSave);
+
       let savedProfile;
       if (originalProfile) {
         // Update existing profile
+        console.log('Updating existing profile...');
         savedProfile = await updateProfile(publicKey, profileDataToSave);
       } else {
         // Create new profile
+        console.log('Creating new profile...');
         savedProfile = await createProfile(profileDataToSave);
       }
 
       if (savedProfile) {
+        console.log('Profile saved successfully:', savedProfile);
         setOriginalProfile(savedProfile);
         setIsEditing(false);
-        alert('Profile updated successfully!');
       } else {
-        alert('Failed to save profile. Please try again.');
+        console.error('Failed to save profile - no data returned');
       }
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Error saving profile. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -249,24 +336,37 @@ const ProfilePage: React.FC = () => {
     setIsEditing(false);
     // Reset to original data
     if (originalProfile) {
-      setProfileData({
-        username: originalProfile.username || '',
-        bio: originalProfile.bio || '',
-        website: originalProfile.website || '',
-        profileImage: originalProfile.profile_image_url,
-        socialLinks: originalProfile.social_links || []
-      });
+              setProfileData({
+          username: originalProfile.username || '',
+          bio: originalProfile.bio || '',
+          profileImage: originalProfile.profile_image_url,
+          socialLinks: (originalProfile.social_links || []).map(link => ({
+            ...link,
+            isVerified: false // Default to false for existing links
+          }))
+        });
       setImagePreview(originalProfile.profile_image_url);
     } else {
       setProfileData({
         username: '',
         bio: '',
-        website: '',
         profileImage: null,
         socialLinks: []
       });
       setImagePreview(null);
     }
+  };
+
+  const handleTestBucketAccess = async () => {
+    console.log('Testing bucket access...');
+    const isAccessible = await testBucketAccess();
+    console.log('Bucket access test:', isAccessible ? 'SUCCESS' : 'FAILED');
+  };
+
+  const handleTestSupabaseConfig = async () => {
+    console.log('Testing Supabase configuration...');
+    const isWorking = await testSupabaseConfig();
+    console.log('Supabase config test:', isWorking ? 'SUCCESS' : 'FAILED');
   };
 
   const formatWalletAddress = (address: string) => {
@@ -334,232 +434,243 @@ const ProfilePage: React.FC = () => {
               <>
                 {/* Profile Image Section */}
                 <div className="text-center mb-8">
-              <div className="relative inline-block">
-                <div className="w-32 h-32 rounded-full bg-background-elevated border-4 border-background-elevated overflow-hidden">
-                  {imagePreview ? (
-                    <img 
-                      src={imagePreview} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <User className="w-12 h-12 text-text-secondary" />
-                    </div>
-                  )}
-                </div>
-                
-                {isEditing && (
-                  <div className="absolute bottom-0 right-0">
-                    <label htmlFor="profile-image" className="cursor-pointer">
-                      <div className="w-10 h-10 bg-gradient-to-r from-primary-mint to-primary-aqua rounded-full flex items-center justify-center hover:opacity-90 transition-opacity">
-                        <Camera className="w-5 h-5 text-background-dark" />
-                      </div>
-                    </label>
-                    <input
-                      id="profile-image"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    {imagePreview && (
-                      <button
-                        onClick={removeImage}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                      >
-                        <X className="w-3 h-3 text-white" />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              <div className="mt-4">
-                <p className="text-text-secondary text-sm font-mono">
-                  {formatWalletAddress(publicKey || '')}
-                </p>
-              </div>
-            </div>
-
-            {/* Form Fields */}
-            <div className="space-y-6">
-              {/* Username */}
-              <div>
-                <label htmlFor="username" className="block text-sm font-medium text-text-primary mb-2">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  id="username"
-                  value={profileData.username}
-                  onChange={(e) => handleInputChange('username', e.target.value)}
-                  disabled={!isEditing}
-                  placeholder="Enter your username"
-                  className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <p className="text-xs text-text-secondary mt-1">
-                  This will be your display name across the platform
-                </p>
-              </div>
-
-              {/* Bio */}
-              <div>
-                <label htmlFor="bio" className="block text-sm font-medium text-text-primary mb-2">
-                  Bio
-                </label>
-                <textarea
-                  id="bio"
-                  value={profileData.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value)}
-                  disabled={!isEditing}
-                  placeholder="Tell us about yourself..."
-                  rows={4}
-                  className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-                />
-                <p className="text-xs text-text-secondary mt-1">
-                  Maximum 500 characters
-                </p>
-              </div>
-
-              {/* Social Links */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-text-primary">Social Links</h3>
-                  {isEditing && (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowSocialDropdown(!showSocialDropdown)}
-                        className="flex items-center space-x-2 px-3 py-1 bg-background-elevated text-text-primary rounded-lg hover:bg-background-dark transition-colors"
-                      >
-                        <span className="text-sm">Add Social</span>
-                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showSocialDropdown ? 'rotate-180' : ''}`} />
-                      </button>
-                      
-                      {/* Social Platform Dropdown */}
-                      {showSocialDropdown && (
-                        <div className="absolute top-full right-0 mt-2 w-64 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
-                          <div className="py-2">
-                            {socialPlatforms.map((platform) => (
-                              <button
-                                key={platform.key}
-                                onClick={() => addSocialLink(platform.key)}
-                                disabled={isPlatformAdded(platform.key)}
-                                className={`w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3 ${
-                                  isPlatformAdded(platform.key) ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
-                              >
-                                {platform.icon}
-                                <span className="text-sm">{platform.name}</span>
-                                {isPlatformAdded(platform.key) && (
-                                  <span className="text-xs text-text-secondary ml-auto">Added</span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                  <div className="relative inline-block">
+                    <div className="w-32 h-32 rounded-full bg-background-elevated border-4 border-background-elevated overflow-hidden">
+                      {imagePreview ? (
+                        <img 
+                          src={imagePreview} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <User className="w-12 h-12 text-text-secondary" />
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-
-                {/* Website */}
-                <div>
-                  <label htmlFor="website" className="block text-sm font-medium text-text-primary mb-2">
-                    <div className="flex items-center space-x-2">
-                      <Globe className="w-4 h-4" />
-                      <span>Website</span>
-                    </div>
-                  </label>
-                  <input
-                    type="url"
-                    id="website"
-                    value={profileData.website}
-                    onChange={(e) => handleInputChange('website', e.target.value)}
-                    disabled={!isEditing}
-                    placeholder="https://yourwebsite.com"
-                    className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </div>
-
-                {/* Social Links List */}
-                {profileData.socialLinks.length > 0 && (
-                  <div className="space-y-3">
-                    {profileData.socialLinks.map((link, index) => (
-                      <div key={index} className="bg-background-dark rounded-lg p-4 border border-background-elevated">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            {getPlatformIcon(link.platform)}
-                            <span className="text-sm font-medium text-text-primary">
-                              {getPlatformName(link.platform)}
-                            </span>
+                    
+                    {isEditing && (
+                      <div className="absolute bottom-0 right-0">
+                        <label htmlFor="profile-image" className="cursor-pointer">
+                          <div className="w-10 h-10 bg-gradient-to-r from-primary-mint to-primary-aqua rounded-full flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <Camera className="w-5 h-5 text-background-dark" />
                           </div>
-                          {isEditing && (
-                            <button
-                              type="button"
-                              onClick={() => removeSocialLink(index)}
-                              className="p-1 text-red-400 hover:text-red-300 transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
+                        </label>
+                        <input
+                          id="profile-image"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                        {imagePreview && (
+                          <button
+                            onClick={removeImage}
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-3 h-3 text-white" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4">
+                    <p className="text-text-secondary text-sm font-mono">
+                      {formatWalletAddress(publicKey || '')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Form Fields */}
+                <div className="space-y-6">
+                  {/* Username */}
+                  <div>
+                    <label htmlFor="username" className="block text-sm font-medium text-text-primary mb-2">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      id="username"
+                      value={profileData.username}
+                      onChange={(e) => handleInputChange('username', e.target.value)}
+                      disabled={!isEditing}
+                      placeholder="Enter your username"
+                      className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <p className="text-xs text-text-secondary mt-1">
+                      This will be your display name across the platform
+                    </p>
+                  </div>
+
+                  {/* Bio */}
+                  <div>
+                    <label htmlFor="bio" className="block text-sm font-medium text-text-primary mb-2">
+                      Bio
+                    </label>
+                    <textarea
+                      id="bio"
+                      value={profileData.bio}
+                      onChange={(e) => handleInputChange('bio', e.target.value)}
+                      disabled={!isEditing}
+                      placeholder="Tell us about yourself..."
+                      rows={4}
+                      className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                    />
+                    <p className="text-xs text-text-secondary mt-1">
+                      Maximum 500 characters
+                    </p>
+                  </div>
+
+                  {/* Connected Socials */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-text-primary">Connected Socials</h3>
+                      {isEditing && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setShowSocialDropdown(!showSocialDropdown)}
+                            className="flex items-center space-x-2 px-3 py-1 bg-background-elevated text-text-primary rounded-lg hover:bg-background-dark transition-colors"
+                          >
+                            <span className="text-sm">Connect Social</span>
+                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showSocialDropdown ? 'rotate-180' : ''}`} />
+                          </button>
+                          
+                          {/* Social Platform Dropdown */}
+                          {showSocialDropdown && (
+                            <div className="absolute top-full right-0 mt-2 w-64 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                              <div className="py-2">
+                                {socialPlatforms.map((platform) => (
+                                  <button
+                                    key={platform.key}
+                                    onClick={() => addSocialLink(platform.key)}
+                                    disabled={isPlatformAdded(platform.key)}
+                                    className={`w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3 ${
+                                      isPlatformAdded(platform.key) ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                  >
+                                    {platform.icon}
+                                    <span className="text-sm">{platform.name}</span>
+                                    {isPlatformAdded(platform.key) && (
+                                      <span className="text-xs text-text-secondary ml-auto">Connected</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
-                        <input
-                          type="text"
-                          value={link.handle}
-                          onChange={(e) => updateSocialLink(index, 'handle', e.target.value)}
-                          disabled={!isEditing}
-                          placeholder={getPlatformPlaceholder(link.platform)}
-                          className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+                      )}
+                    </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-center space-x-4 mt-8">
-              {!isEditing ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-8 py-3 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark font-semibold rounded-xl hover:opacity-90 transition-all duration-200"
-                >
-                  Edit Profile
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={handleCancel}
-                    className="px-8 py-3 bg-background-elevated text-text-primary font-semibold rounded-xl hover:bg-background-dark transition-all duration-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="px-8 py-3 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark font-semibold rounded-xl hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-background-dark border-t-transparent rounded-full animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        <span>Save Changes</span>
-                      </>
+                    {/* Connected Socials List */}
+                    {profileData.socialLinks.length > 0 && (
+                      <div className="space-y-3">
+                        {profileData.socialLinks.map((link, index) => (
+                          <div key={index} className="bg-background-dark rounded-lg p-4 border border-background-elevated">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-2">
+                                {getPlatformIcon(link.platform)}
+                                <span className="text-sm font-medium text-text-primary">
+                                  {getPlatformName(link.platform)}
+                                </span>
+                                {link.isVerified && (
+                                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">
+                                    ✓ Verified
+                                  </span>
+                                )}
+                              </div>
+                              {isEditing && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeSocialLink(index)}
+                                  className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                            <input
+                              type="text"
+                              value={link.handle}
+                              onChange={(e) => updateSocialLink(index, 'handle', e.target.value)}
+                              disabled={!isEditing}
+                              placeholder={getPlatformPlaceholder(link.platform)}
+                              className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            {isEditing && !link.isVerified && (
+                              <button
+                                type="button"
+                                onClick={() => initiateOAuth(link.platform)}
+                                className="mt-2 w-full px-3 py-2 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-200"
+                              >
+                                Verify Ownership via OAuth
+                              </button>
+                            )}
+                            {isEditing && link.isVerified && (
+                              <div className="mt-2 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+                                <p className="text-xs text-green-400">
+                                  ✓ Account verified via OAuth
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </button>
-                </>
-              )}
-            </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-center space-x-4 mt-8">
+                  {!isEditing ? (
+                    <div className="flex space-x-4">
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="px-8 py-3 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark font-semibold rounded-xl hover:opacity-90 transition-all duration-200"
+                      >
+                        Edit Profile
+                      </button>
+
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleCancel}
+                        className="px-8 py-3 bg-background-elevated text-text-primary font-semibold rounded-xl hover:bg-background-dark transition-all duration-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving || profileData.socialLinks.some(link => !link.isVerified)}
+                        className="px-8 py-3 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark font-semibold rounded-xl hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                      >
+                        {isSaving ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-background-dark border-t-transparent rounded-full animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Save Changes</span>
+                          </>
+                        )}
+                        {profileData.socialLinks.some(link => !link.isVerified) && (
+                          <div className="mt-2 text-xs text-red-400">
+                            Verify all connected social accounts to save
+                          </div>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
               </>
             )}
           </div>
+        </div>
       </main>
 
       <Footer />
