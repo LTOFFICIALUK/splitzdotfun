@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BagsSDK } from '@bagsfm/bags-sdk';
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 
 // Initialize BagsApp API configuration
@@ -36,98 +37,68 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Initialize Solana connection and BagsApp SDK
+    const connection = new Connection(SOLANA_RPC_URL!);
+    const sdk = new BagsSDK(BAGS_API_KEY!, connection, 'processed');
+
+    const creatorPublicKey = new PublicKey(body.creatorWallet);
+
     console.log(`🔧 Creating launch transaction for token ${body.tokenMint}`);
     console.log(`💰 Initial buy amount: ${body.initialBuyAmount} SOL (${Math.floor(body.initialBuyAmount * LAMPORTS_PER_SOL)} lamports)`);
 
-    // Step 1: Check if config exists
-    console.log('⚙️  Checking if config exists...');
-    
-    try {
-      // Try to get existing config first
-      const configCheckResponse = await fetch('https://public-api-v2.bags.fm/api/v1/token-launch/get-config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': BAGS_API_KEY
-        },
-        body: JSON.stringify({
-          launchWallet: body.creatorWallet
-        })
-      });
+    const sdkConnection = sdk.state.getConnection();
+    const commitment = sdk.state.getCommitment();
 
-      if (configCheckResponse.ok) {
-        console.log('♻️  Config already exists, proceeding with launch transaction');
-        
-        // Step 2: Create launch transaction directly
-        console.log('🎯 Creating token launch transaction...');
-        
-        const launchResponse = await fetch('https://public-api-v2.bags.fm/api/v1/token-launch/create-launch-transaction', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': BAGS_API_KEY
-          },
-          body: JSON.stringify({
-            tokenMint: body.tokenMint,
-            metadataUrl: body.tokenMetadata,
-            launchWallet: body.creatorWallet,
-            initialBuyLamports: Math.floor(body.initialBuyAmount * LAMPORTS_PER_SOL)
-          })
-        });
+    console.log('⚙️  Fetching configuration...');
 
-        if (!launchResponse.ok) {
-          const errorData = await launchResponse.json();
-          throw new Error(`Launch transaction creation failed: ${errorData.error || 'Unknown error'}`);
-        }
+    // Get existing config or config creation TX
+    const configResponse = await sdk.config.getOrCreateConfig(creatorPublicKey);
 
-        const launchResult = await launchResponse.json();
-        
-        console.log('✅ Launch transaction created successfully');
-        console.log(`💰 Estimated cost: ${body.initialBuyAmount} SOL (initial buy) + ~0.000005 SOL (fees)`);
-        
-        const response: CreateLaunchTransactionResponse = {
-          success: true,
-          transaction: launchResult.response.tx,
-          message: 'Launch transaction created successfully! Ready for signing.',
-          isConfigTransaction: false
-        };
+    // If config doesn't exist, we need to create it first
+    if (configResponse.transaction) { 
+      console.log('🔧 Config does not exist, creating configuration transaction...');
+      console.log(`💰 Config creation cost: ~0.01-0.02 SOL (one-time)`);
+      
+      // Return the config creation transaction for signing
+      const serializedConfigTransaction = configResponse.transaction.serialize();
+      
+      const response: CreateLaunchTransactionResponse = {
+        success: true,
+        transaction: Array.from(serializedConfigTransaction),
+        message: 'Configuration transaction created! Sign this first, then we\'ll create the launch transaction.',
+        isConfigTransaction: true,
+        configKey: configResponse.configKey.toString()
+      };
 
-        return NextResponse.json(response);
-      }
-    } catch (configError) {
-      console.log('🔧 Config does not exist, creating configuration first...');
+      console.log('✅ Config transaction created successfully');
+      return NextResponse.json(response);
+    }
+    else {
+      console.log('♻️  Config already exists, reusing config key:', configResponse.configKey.toString());
     }
 
-    // Step 1: Create config transaction
-    console.log('🔧 Creating configuration transaction...');
-    
-    const configResponse = await fetch('https://public-api-v2.bags.fm/api/v1/token-launch/create-config', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': BAGS_API_KEY
-      },
-      body: JSON.stringify({
-        launchWallet: body.creatorWallet
-      })
+    console.log('🎯 Creating token launch transaction...');
+
+    // Create token launch transaction
+    const tokenLaunchTransaction = await sdk.tokenLaunch.createLaunchTransaction({
+      metadataUrl: body.tokenMetadata,
+      tokenMint: new PublicKey(body.tokenMint),
+      launchWallet: creatorPublicKey,
+      initialBuyLamports: Math.floor(body.initialBuyAmount * LAMPORTS_PER_SOL),
+      configKey: configResponse.configKey,
     });
 
-    if (!configResponse.ok) {
-      const errorData = await configResponse.json();
-      throw new Error(`Config creation failed: ${errorData.error || 'Unknown error'}`);
-    }
+    // Return the launch transaction for signing
+    const serializedLaunchTransaction = tokenLaunchTransaction.serialize();
 
-    const configResult = await configResponse.json();
-    
-    console.log('✅ Config transaction created successfully');
-    console.log(`💰 Config creation cost: ~0.01-0.02 SOL (one-time)`);
-    
+    console.log('✅ Launch transaction created successfully');
+    console.log(`💰 Estimated cost: ${body.initialBuyAmount} SOL (initial buy) + ~0.000005 SOL (fees)`);
+
     const response: CreateLaunchTransactionResponse = {
       success: true,
-      transaction: configResult.response.tx,
-      message: 'Configuration transaction created! Sign this first, then we\'ll create the launch transaction.',
-      isConfigTransaction: true,
-      configKey: configResult.response.configKey
+      transaction: Array.from(serializedLaunchTransaction),
+      message: 'Launch transaction created successfully! Ready for signing.',
+      isConfigTransaction: false
     };
 
     return NextResponse.json(response);

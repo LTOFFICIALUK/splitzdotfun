@@ -364,27 +364,15 @@ const CreateCoin: React.FC = () => {
           
           let transaction;
           try {
-            // The API returns a transaction object, not a serialized buffer
-            if (typeof transactionResult.transaction === 'string') {
-              // If it's a base64 string, decode it
-              const transactionBuffer = Buffer.from(transactionResult.transaction, 'base64');
-              try {
-                transaction = Transaction.from(transactionBuffer);
-              } catch (error) {
-                transaction = VersionedTransaction.deserialize(transactionBuffer);
-              }
-            } else if (Array.isArray(transactionResult.transaction)) {
-              // If it's an array (from our old implementation)
-              const transactionBuffer = Buffer.from(transactionResult.transaction);
-              try {
-                transaction = Transaction.from(transactionBuffer);
-              } catch (error) {
-                transaction = VersionedTransaction.deserialize(transactionBuffer);
-              }
-            } else {
-              // If it's already a transaction object
-              transaction = transactionResult.transaction;
+            // SDK returns serialized transaction as array
+            const transactionBuffer = Buffer.from(transactionResult.transaction);
+            try {
+              transaction = Transaction.from(transactionBuffer);
+            } catch (error) {
+              transaction = VersionedTransaction.deserialize(transactionBuffer);
             }
+            
+            console.log('Transaction parsed successfully:', transaction);
           } catch (error) {
             console.error('Failed to parse transaction:', error);
             throw new Error('Invalid transaction format received from API');
@@ -427,26 +415,12 @@ const CreateCoin: React.FC = () => {
             // Convert the launch transaction back to a Transaction object
             let launchTransaction;
             try {
-              // The API returns a transaction object, not a serialized buffer
-              if (typeof launchTransactionResult.transaction === 'string') {
-                // If it's a base64 string, decode it
-                const transactionBuffer = Buffer.from(launchTransactionResult.transaction, 'base64');
-                try {
-                  launchTransaction = Transaction.from(transactionBuffer);
-                } catch (error) {
-                  launchTransaction = VersionedTransaction.deserialize(transactionBuffer);
-                }
-              } else if (Array.isArray(launchTransactionResult.transaction)) {
-                // If it's an array (from our old implementation)
-                const transactionBuffer = Buffer.from(launchTransactionResult.transaction);
-                try {
-                  launchTransaction = Transaction.from(transactionBuffer);
-                } catch (error) {
-                  launchTransaction = VersionedTransaction.deserialize(transactionBuffer);
-                }
-              } else {
-                // If it's already a transaction object
-                launchTransaction = launchTransactionResult.transaction;
+              // SDK returns serialized transaction as array
+              const transactionBuffer = Buffer.from(launchTransactionResult.transaction);
+              try {
+                launchTransaction = Transaction.from(transactionBuffer);
+              } catch (error) {
+                launchTransaction = VersionedTransaction.deserialize(transactionBuffer);
               }
             } catch (error) {
               console.error('Failed to parse launch transaction:', error);
