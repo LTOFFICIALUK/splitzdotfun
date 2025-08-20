@@ -377,8 +377,16 @@ Do you want to proceed with the on-chain launch?`);
           console.log('Message:', transactionResult.message);
           
           // Convert the transaction back to a Transaction object
-          const { Transaction } = await import('@solana/web3.js');
-          const transaction = Transaction.from(Buffer.from(transactionResult.transaction));
+          const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
+          
+          let transaction;
+          try {
+            // Try to deserialize as a regular transaction first
+            transaction = Transaction.from(Buffer.from(transactionResult.transaction));
+          } catch (error) {
+            // If that fails, try as a versioned transaction
+            transaction = VersionedTransaction.deserialize(Buffer.from(transactionResult.transaction));
+          }
           
           // Sign the transaction with the wallet (this will trigger Phantom popup)
           let signedTransaction = await signAndSendTransaction(transaction);
@@ -415,7 +423,14 @@ Do you want to proceed with the on-chain launch?`);
             console.log('🔐 Launch transaction created, requesting wallet signature...');
             
             // Convert the launch transaction back to a Transaction object
-            const launchTransaction = Transaction.from(Buffer.from(launchTransactionResult.transaction));
+            let launchTransaction;
+            try {
+              // Try to deserialize as a regular transaction first
+              launchTransaction = Transaction.from(Buffer.from(launchTransactionResult.transaction));
+            } catch (error) {
+              // If that fails, try as a versioned transaction
+              launchTransaction = VersionedTransaction.deserialize(Buffer.from(launchTransactionResult.transaction));
+            }
             
             // Sign the launch transaction with the wallet
             const signedLaunchTransaction = await signAndSendTransaction(launchTransaction);
@@ -431,35 +446,18 @@ Do you want to proceed with the on-chain launch?`);
           console.log(`Contract Address: ${result.tokenAddress}`);
           console.log(`Transaction: ${signedTransaction}`);
           
-          // Show success message
-          alert(`🎉 Token launched successfully!
-
-Token: ${result.symbol}
-Contract Address: ${result.tokenAddress}
-Transaction: ${signedTransaction}
-
-Your token is now live on Solana!`);
-          
-          // Redirect to token page
+          // Only redirect to token page after successful launch
           window.location.href = `/token/${result.tokenAddress}`;
           return;
           
         } catch (error) {
           console.error('❌ Failed to launch token:', error);
           
-          // Show error message
-          alert(`❌ Failed to launch token: ${error instanceof Error ? error.message : 'Unknown error'}
-
-Your token metadata was created successfully and can be launched later.`);
-          
-          // Still redirect to token page
-          window.location.href = `/token/${result.tokenAddress}`;
+          // Don't redirect if launch failed - stay on create page
+          console.log('⚠️ Token metadata created, but launch failed. You can try launching later.');
           return;
         }
       }
-      
-      // Fallback redirect
-      window.location.href = `/token/${result.tokenAddress}`;
       
     } catch (error) {
       console.error('Token launch error:', error);
