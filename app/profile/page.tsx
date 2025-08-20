@@ -59,9 +59,16 @@ const generateCodeChallenge = async (verifier: string) => {
 const toBase64Url = (base64: string) => base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
 
 const generateOAuthState = (walletAddress: string, codeVerifier: string) => {
-  // Use a simple random string like the working example
-  // For now, just return a simple state and we'll handle code_verifier differently
-  return Math.random().toString(36).substring(2, 15);
+  // Create a state that includes both wallet and code_verifier in a URL-safe format
+  const stateData = {
+    wallet: walletAddress,
+    code_verifier: codeVerifier
+  };
+  // Use base64url encoding to make it URL-safe
+  return btoa(JSON.stringify(stateData))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
 };
 
 interface ProfileSocialLink {
