@@ -351,26 +351,10 @@ Do you want to proceed with the on-chain launch?`);
             return;
           }
 
-          console.log('🔐 User confirmed launch, requesting wallet signature...');
+          console.log('🔐 User confirmed launch, creating transaction for wallet signing...');
           
-          // Request the user's private key for signing
-          const privateKey = prompt(`🔐 To complete the token launch, please provide your wallet's private key.
-
-⚠️  WARNING: This is a security-sensitive operation.
-Your private key will only be used to sign the transaction and will not be stored.
-
-Please export your private key from your wallet and paste it here:`);
-
-          if (!privateKey) {
-            console.log('⚠️ No private key provided, cancelling launch');
-            window.location.href = `/token/${result.tokenAddress}`;
-            return;
-          }
-
-          console.log('🔐 Private key provided, launching token...');
-          
-          // Call the final launch endpoint
-          const launchResponse = await fetch('/api/launch-token-final', {
+          // Create the transaction for signing
+          const transactionResponse = await fetch('/api/create-launch-transaction', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -379,29 +363,38 @@ Please export your private key from your wallet and paste it here:`);
               tokenMint: result.tokenAddress,
               tokenMetadata: result.tokenMetadata,
               initialBuyAmount: parseFloat(formData.initialBuyAmount),
-              creatorWallet: publicKey,
-              privateKey: privateKey
+              creatorWallet: publicKey
             })
           });
 
-          if (!launchResponse.ok) {
-            const errorData = await launchResponse.json();
-            throw new Error(errorData.error || 'Failed to launch token');
+          if (!transactionResponse.ok) {
+            throw new Error('Failed to create launch transaction');
           }
 
-          const launchResult = await launchResponse.json();
+          const transactionResult = await transactionResponse.json();
+          
+          console.log('🔐 Transaction created, requesting wallet signature...');
+          
+          // Convert the transaction back to a Transaction object
+          const { Transaction } = await import('@solana/web3.js');
+          const transaction = Transaction.from(Buffer.from(transactionResult.transaction));
+          
+          // Sign the transaction with the wallet (this will trigger Phantom popup)
+          const signedTransaction = await signAndSendTransaction(transaction);
+          
+                    console.log('✅ Transaction signed and sent:', signedTransaction);
           
           console.log('✅ Token launched successfully!');
-          console.log(`Token: ${launchResult.symbol}`);
-          console.log(`Contract Address: ${launchResult.tokenAddress}`);
-          console.log(`Transaction: ${launchResult.transactionSignature}`);
+          console.log(`Token: ${result.symbol}`);
+          console.log(`Contract Address: ${result.tokenAddress}`);
+          console.log(`Transaction: ${signedTransaction}`);
           
           // Show success message
           alert(`🎉 Token launched successfully!
 
-Token: ${launchResult.symbol}
-Contract Address: ${launchResult.tokenAddress}
-Transaction: ${launchResult.transactionSignature}
+Token: ${result.symbol}
+Contract Address: ${result.tokenAddress}
+Transaction: ${signedTransaction}
 
 Your token is now live on Solana!`);
           
