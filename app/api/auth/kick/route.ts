@@ -42,30 +42,42 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=missing_params`);
   }
 
-  // Extract wallet address from state (simplified)
-  const walletAddress = state;
+  // Extract wallet address and code_verifier from state
+  let walletAddress: string;
+  let codeVerifier: string;
+  
+  try {
+    const stateData = JSON.parse(atob(state.replace(/-/g, '+').replace(/_/g, '/')));
+    walletAddress = stateData.wallet;
+    codeVerifier = stateData.code_verifier;
+  } catch (error) {
+    console.error('Failed to parse state parameter:', error);
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=invalid_state`);
+  }
 
   try {
     console.log('Kick OAuth callback received:', { 
       code: code ? code.substring(0, 10) + '...' : 'undefined',
       walletAddress,
+      codeVerifier: codeVerifier ? codeVerifier.substring(0, 10) + '...' : 'undefined',
       clientId: process.env.KICK_CLIENT_ID ? 'present' : 'missing',
       hasClientSecret: !!process.env.KICK_CLIENT_SECRET,
       redirectUri: 'https://splitz.fun/api/auth/kick'
     });
 
-    // Exchange code for access token (without PKCE)
+    // Exchange code for access token with PKCE
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
       client_id: process.env.KICK_CLIENT_ID || '',
       client_secret: process.env.KICK_CLIENT_SECRET || '',
       code: code,
-      redirect_uri: 'https://splitz.fun/api/auth/kick'
+      redirect_uri: 'https://splitz.fun/api/auth/kick',
+      code_verifier: codeVerifier
     });
 
     console.log('Kick token request (form-encoded):', tokenParams.toString());
 
-    const tokenResponse = await fetch('https://kick.com/oauth/token', {
+    const tokenResponse = await fetch('https://id.kick.com/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
