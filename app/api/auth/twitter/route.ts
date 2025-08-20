@@ -97,7 +97,8 @@ export async function GET(request: NextRequest) {
       p_wallet_address: walletAddress,
       p_platform: 'X',
       p_is_verified: true,
-      p_oauth_token: tokenData.access_token
+      p_oauth_token: tokenData.access_token,
+      p_username: username
     });
 
     if (error) {

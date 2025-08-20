@@ -29,6 +29,7 @@ export interface Profile {
   oauth_verifications?: Record<string, {
     is_verified: boolean;
     oauth_token?: string;
+    username?: string;
     verified_at?: string;
   }>;
   created_at: string;
