@@ -12,16 +12,13 @@ import {
 } from 'lucide-react';
 import { 
   FaXTwitter, 
-  FaInstagram, 
   FaYoutube, 
   FaTwitch, 
-  FaLinkedin, 
   FaGithub, 
   FaTiktok
 } from 'react-icons/fa6';
 import { 
-  SiKick, 
-  SiRumble 
+  SiKick
 } from 'react-icons/si';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -88,15 +85,11 @@ interface ProfileData {
 
 const socialPlatforms = [
   { key: 'X', name: 'X', icon: <FaXTwitter className="w-4 h-4" />, placeholder: '@username' },
-  { key: 'Instagram', name: 'Instagram', icon: <FaInstagram className="w-4 h-4" />, placeholder: '@username' },
-  { key: 'Instagram Threads', name: 'Instagram Threads', icon: <MessageCircle className="w-4 h-4" />, placeholder: '@username' },
   { key: 'TikTok', name: 'TikTok', icon: <FaTiktok className="w-4 h-4" />, placeholder: '@username' },
   { key: 'YouTube', name: 'YouTube', icon: <FaYoutube className="w-4 h-4" />, placeholder: 'Channel name' },
   { key: 'GitHub', name: 'GitHub', icon: <FaGithub className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'LinkedIn', name: 'LinkedIn', icon: <FaLinkedin className="w-4 h-4" />, placeholder: 'Profile URL' },
   { key: 'Twitch', name: 'Twitch', icon: <FaTwitch className="w-4 h-4" />, placeholder: 'username' },
   { key: 'Kick', name: 'Kick', icon: <SiKick className="w-4 h-4" />, placeholder: 'username' },
-  { key: 'Rumble', name: 'Rumble', icon: <SiRumble className="w-4 h-4" />, placeholder: 'username' },
 ];
 
 const ProfilePage: React.FC = () => {
@@ -258,7 +251,7 @@ const ProfilePage: React.FC = () => {
   };
 
   const getPlatformIcon = (platformKey: string) => {
-    return socialPlatforms.find(p => p.key === platformKey)?.icon || <FaInstagram className="w-4 h-4" />;
+    return socialPlatforms.find(p => p.key === platformKey)?.icon || <FaXTwitter className="w-4 h-4" />;
   };
 
   const getPlatformPlaceholder = (platformKey: string) => {
