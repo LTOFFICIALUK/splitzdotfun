@@ -21,9 +21,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const resolvedRedirectUri = process.env.GITHUB_REDIRECT_URI 
-      || process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI 
-      || 'https://splitz.fun/api/auth/github';
+    const resolvedRedirectUri = 'https://splitz.fun/api/auth/github';
 
     console.log('GitHub OAuth callback received:', { 
       code: code ? code.substring(0, 10) + '...' : 'undefined',
