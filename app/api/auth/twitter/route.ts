@@ -9,10 +9,24 @@ const supabase = createClient(
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  const state = searchParams.get('state'); // This will contain the wallet address
+  const state = searchParams.get('state'); // This will contain the wallet address and code verifier
   
   if (!code || !state) {
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=missing_params`);
+  }
+
+  // Parse state to get wallet address and code verifier
+  let walletAddress: string;
+  let codeVerifier: string;
+  
+  try {
+    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    walletAddress = stateData.wallet;
+    codeVerifier = stateData.code_verifier;
+  } catch (error) {
+    // Fallback for old format where state was just the wallet address
+    walletAddress = state;
+    codeVerifier = 'challenge'; // Fallback code verifier
   }
 
   try {
@@ -27,7 +41,7 @@ export async function GET(request: NextRequest) {
         grant_type: 'authorization_code',
         code,
         redirect_uri: process.env.TWITTER_REDIRECT_URI!,
-        code_verifier: 'challenge' // You should implement PKCE for production
+        code_verifier: codeVerifier
       })
     });
 
@@ -55,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     // Update the user's profile with verification status
     const { error } = await supabase.rpc('update_oauth_verification', {
-      wallet_address: state,
+      wallet_address: walletAddress,
       platform: 'X',
       is_verified: true,
       oauth_token: tokenData.access_token
