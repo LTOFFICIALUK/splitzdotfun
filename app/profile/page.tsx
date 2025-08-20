@@ -38,10 +38,8 @@ const generateCodeVerifier = () => {
     .replace(/=/g, '');
 };
 
-const generateCodeChallenge = async () => {
-  const verifier = generateCodeVerifier();
-  
-  // Hash the verifier with SHA256 for the challenge
+const generateCodeChallenge = async (verifier: string) => {
+  // Hash the provided verifier with SHA256 for the challenge
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data as BufferSource);
@@ -139,7 +137,9 @@ const ProfilePage: React.FC = () => {
 
 
     const codeVerifier = generateCodeVerifier();
-    const codeChallenge = await generateCodeChallenge();
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+    // Minimal debug to ensure PKCE parts are consistent
+    // console.log('PKCE lengths', { v: codeVerifier.length, c: codeChallenge.length });
     
     const oauthUrls = {
       'X': `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/api/auth/twitter')}&scope=users.read&state=${generateOAuthState(publicKey, codeVerifier)}&code_challenge=${codeChallenge}&code_challenge_method=S256`,
