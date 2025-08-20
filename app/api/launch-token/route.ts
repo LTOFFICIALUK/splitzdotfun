@@ -39,6 +39,7 @@ interface TokenLaunchResponse {
   message: string;
   transactionSignature?: string;
   tokenMetadata?: string;
+  needsSigning?: boolean;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -74,7 +75,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const connection = new Connection(SOLANA_RPC_URL!);
     const sdk = new BagsSDK(BAGS_API_KEY!, connection, 'processed');
 
-    // Generate a unique token ID for the website URL
+    // We'll use the actual token address for the URL, but we need to create metadata first
+    // For now, generate a placeholder - we'll update this after metadata creation
     const tokenId = generateTokenId();
     const websiteUrl = `https://splitz.fun/token/${tokenId}`;
 
@@ -102,8 +104,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     try {
-      // Create keypair from user's wallet address (we'll need private key from frontend)
-      // For now, we'll use the BagsApp API directly
+      // We need the user's private key to sign transactions
+      // For now, we'll create the metadata and return the data needed for frontend signing
       
       console.log('📝 Creating token info and metadata...');
 
@@ -123,13 +125,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('✨ Successfully created token info and metadata!');
       console.log('🪙 Token mint:', tokenInfoResponse.tokenMint);
 
+      // Use the actual token address for the URL
+      const actualWebsiteUrl = `https://splitz.fun/token/${tokenInfoResponse.tokenMint}`;
+      
       const response: TokenLaunchResponse = {
         success: true,
         tokenAddress: tokenInfoResponse.tokenMint,
         symbol: body.symbol,
-        websiteUrl: websiteUrl,
-        message: 'Token metadata created successfully! Ready for launch.',
-        tokenMetadata: tokenInfoResponse.tokenMetadata
+        websiteUrl: actualWebsiteUrl,
+        message: 'Token metadata created! Now we need to launch the token with wallet signing.',
+        tokenMetadata: tokenInfoResponse.tokenMetadata,
+        needsSigning: true
       };
 
       console.log('✅ Token metadata created successfully:', response);

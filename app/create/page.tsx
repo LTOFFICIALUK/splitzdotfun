@@ -327,28 +327,56 @@ const CreateCoin: React.FC = () => {
       // Step 2: Launch the token with wallet signing
       console.log('🚀 Step 2: Launching token with wallet signing...');
       
-      // Get user's private key (this would need to be handled securely)
-      // For now, we'll show a message about the next steps
-      const successMessage = `🎉 Token metadata created successfully!
+      if (result.needsSigning) {
+        // Ask user to sign the transaction
+        const shouldSign = confirm(`🎯 Token metadata created! 
 
 Token: ${result.symbol}
 Token Address: ${result.tokenAddress}
-Website: ${result.websiteUrl}
+
+To complete the token launch, you need to sign a transaction with your wallet.
+
+This will:
+• Deploy the token on Solana
+• Pay ~0.05 SOL in transaction fees
+• Make an initial buy of ${formData.initialBuyAmount} SOL
+
+Do you want to proceed with signing?`);
+
+        if (shouldSign) {
+          // Here we would need to get the user's private key securely
+          // For now, we'll show instructions
+          alert(`🔐 Wallet Signing Required
+
+To complete the token launch, you need to:
+
+1. Export your private key from your wallet
+2. Sign the transaction on-chain
+3. Pay the deployment fees
+
+This is a security-sensitive operation that requires your private key.
+
+For now, your token metadata is ready and can be launched later.`);
+        }
+      }
+      
+      const successMessage = `🎉 Token metadata created successfully!
+
+Token: ${result.symbol}
+Contract Address: ${result.tokenAddress}
+Token Page: /token/${result.tokenAddress}
 
 Your token metadata is ready! 
 
-Next steps for full launch:
-1. Wallet signing will be required
-2. Transaction fees will be paid from your wallet
-3. Token will be fully launched on Solana
+Status: Metadata created, ready for on-chain launch
+Next: Wallet signing required to deploy on Solana
 
 ${result.tokenMetadata ? `Metadata: ${result.tokenMetadata}` : ''}`;
       
       alert(successMessage);
       
-      // For now, redirect to token page
-      // In production, you'd implement the wallet signing flow here
-      window.location.href = result.websiteUrl;
+      // Redirect to token page using the contract address
+      window.location.href = `/token/${result.tokenAddress}`;
       
     } catch (error) {
       console.error('Token launch error:', error);
