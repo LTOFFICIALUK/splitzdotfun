@@ -49,7 +49,6 @@ export async function GET(request: NextRequest) {
     console.log('Kick OAuth callback received:', { 
       code: code ? code.substring(0, 10) + '...' : 'undefined',
       walletAddress,
-      codeVerifier: codeVerifier ? codeVerifier.substring(0, 10) + '...' : 'undefined',
       clientId: process.env.KICK_CLIENT_ID ? 'present' : 'missing',
       hasClientSecret: !!process.env.KICK_CLIENT_SECRET,
       redirectUri: 'https://splitz.fun/api/auth/kick'
