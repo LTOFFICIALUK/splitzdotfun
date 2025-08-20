@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     console.log('Kick token request (form-encoded):', tokenParams.toString());
 
-    const tokenResponse = await fetch('https://id.kick.com/oauth/token', {
+    const tokenResponse = await fetch('https://kick.com/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
