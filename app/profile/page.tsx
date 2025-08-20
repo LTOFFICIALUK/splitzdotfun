@@ -214,12 +214,16 @@ const ProfilePage: React.FC = () => {
             // Check OAuth verification status for each social link
             const socialLinksWithVerification = (profile.social_links || []).map(link => {
               const oauthData = profile.oauth_verifications?.[link.platform];
+              console.log(`Social link ${link.platform}:`, { link, oauthData });
               return {
                 ...link,
                 isVerified: oauthData?.is_verified || false,
                 oauthToken: oauthData?.oauth_token
               };
             });
+
+            console.log('OAuth verifications from database:', profile.oauth_verifications);
+            console.log('Social links with verification:', socialLinksWithVerification);
 
             setProfileData({
               username: profile.username || '',
@@ -252,14 +256,30 @@ const ProfilePage: React.FC = () => {
 
     if (verified && username && publicKey) {
       // Update the profile data with verified status
-      setProfileData(prev => ({
-        ...prev,
-        socialLinks: prev.socialLinks.map(link => 
-          link.platform === verified 
-            ? { ...link, isVerified: true, handle: username }
-            : link
-        )
-      }));
+      setProfileData(prev => {
+        // Check if we already have a social link for this platform
+        const existingLinkIndex = prev.socialLinks.findIndex(link => link.platform === verified);
+        
+        if (existingLinkIndex >= 0) {
+          // Update existing link
+          const updatedLinks = [...prev.socialLinks];
+          updatedLinks[existingLinkIndex] = {
+            ...updatedLinks[existingLinkIndex],
+            isVerified: true,
+            handle: username
+          };
+          return { ...prev, socialLinks: updatedLinks };
+        } else {
+          // Add new social link for verified platform
+          const newLink = {
+            platform: verified,
+            handle: username,
+            url: `https://${verified.toLowerCase()}.com/${username}`,
+            isVerified: true
+          };
+          return { ...prev, socialLinks: [...prev.socialLinks, newLink] };
+        }
+      });
 
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
