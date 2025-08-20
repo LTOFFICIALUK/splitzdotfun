@@ -199,11 +199,57 @@ const ProfilePage: React.FC = () => {
     }));
   };
 
-  const removeSocialLink = (index: number) => {
-    setProfileData(prev => ({
-      ...prev,
-      socialLinks: prev.socialLinks.filter((_, i) => i !== index)
-    }));
+  const removeSocialLink = async (index: number) => {
+    if (!publicKey) {
+      console.error('No public key available for removing social link');
+      return;
+    }
+
+    const linkToRemove = profileData.socialLinks[index];
+    const platform = linkToRemove.platform;
+
+    try {
+      // Get current profile to update OAuth verifications
+      const currentProfile = await getProfile(publicKey);
+      if (!currentProfile) {
+        console.error('No profile found for wallet:', publicKey);
+        return;
+      }
+
+      // Remove the social link from the array
+      const updatedSocialLinks = profileData.socialLinks.filter((_, i) => i !== index);
+
+      // Remove OAuth verification for this platform if it exists
+      const updatedOAuthVerifications = { ...currentProfile.oauth_verifications };
+      if (updatedOAuthVerifications[platform]) {
+        delete updatedOAuthVerifications[platform];
+        console.log(`Removed OAuth verification for ${platform}`);
+      }
+
+      // Update the database
+      const profileDataToUpdate = {
+        wallet_address: publicKey,
+        social_links: updatedSocialLinks,
+        oauth_verifications: updatedOAuthVerifications
+      };
+
+      const updatedProfile = await updateProfile(publicKey, profileDataToUpdate);
+      if (updatedProfile) {
+        console.log('Successfully removed social link and OAuth verification from database');
+        // Update local state
+        setProfileData(prev => ({
+          ...prev,
+          socialLinks: updatedSocialLinks
+        }));
+        // Update original profile
+        setOriginalProfile(updatedProfile);
+      } else {
+        console.error('Failed to update profile in database');
+      }
+    } catch (error) {
+      console.error('Error removing social link:', error);
+      alert('Failed to remove social link. Please try again.');
+    }
   };
 
   const getPlatformName = (platformKey: string) => {
@@ -784,11 +830,13 @@ const ProfilePage: React.FC = () => {
                                 )}
                               </div>
                               {isEditing && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeSocialLink(index)}
-                                  className="p-1 text-red-400 hover:text-red-300 transition-colors"
-                                >
+                                                              <button
+                                type="button"
+                                onClick={() => removeSocialLink(index).catch(error => {
+                                  console.error('Error in removeSocialLink:', error);
+                                })}
+                                className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                              >
                                   <X className="w-4 h-4" />
                                 </button>
                               )}
