@@ -227,10 +227,14 @@ const ProfilePage: React.FC = () => {
             const verifiedOAuthPlatforms = Object.keys(profile.oauth_verifications || {});
             const existingPlatforms = (profile.social_links || []).map(link => link.platform);
             
+            console.log('Verified OAuth platforms:', verifiedOAuthPlatforms);
+            console.log('Existing social link platforms:', existingPlatforms);
+            
             const additionalSocialLinks = verifiedOAuthPlatforms
               .filter(platform => !existingPlatforms.includes(platform))
               .map(platform => {
                 const oauthData = profile.oauth_verifications![platform];
+                console.log(`Creating social link for platform ${platform}:`, oauthData);
                 return {
                   platform,
                   handle: oauthData.username || '',
@@ -275,31 +279,66 @@ const ProfilePage: React.FC = () => {
     const error = urlParams.get('error');
 
     if (verified && username && publicKey) {
-      // Update the profile data with verified status
-      setProfileData(prev => {
-        // Check if we already have a social link for this platform
-        const existingLinkIndex = prev.socialLinks.findIndex(link => link.platform === verified);
-        
-        if (existingLinkIndex >= 0) {
-          // Update existing link
-          const updatedLinks = [...prev.socialLinks];
-          updatedLinks[existingLinkIndex] = {
-            ...updatedLinks[existingLinkIndex],
-            isVerified: true,
-            handle: username
-          };
-          return { ...prev, socialLinks: updatedLinks };
-        } else {
-          // Add new social link for verified platform
-          const newLink = {
-            platform: verified,
-            handle: username,
-            url: `https://${verified.toLowerCase()}.com/${username}`,
-            isVerified: true
-          };
-          return { ...prev, socialLinks: [...prev.socialLinks, newLink] };
+      console.log('OAuth callback received:', { verified, username, publicKey });
+      
+      // Reload profile data from database to get the latest OAuth verification
+      const loadProfile = async () => {
+        try {
+          const profile = await getProfile(publicKey);
+          if (profile) {
+            console.log('Reloaded profile after OAuth:', profile);
+            
+            // Check OAuth verification status for each social link
+            const socialLinksWithVerification = (profile.social_links || []).map(link => {
+              const oauthData = profile.oauth_verifications?.[link.platform];
+              console.log(`Social link ${link.platform}:`, { link, oauthData });
+              return {
+                ...link,
+                isVerified: oauthData?.is_verified || false,
+                oauthToken: oauthData?.oauth_token,
+                handle: oauthData?.username || link.handle // Use OAuth username if available
+              };
+            });
+
+            // Add social links for verified OAuth platforms that don't have social links yet
+            const verifiedOAuthPlatforms = Object.keys(profile.oauth_verifications || {});
+            const existingPlatforms = (profile.social_links || []).map(link => link.platform);
+            
+            console.log('Verified OAuth platforms:', verifiedOAuthPlatforms);
+            console.log('Existing social link platforms:', existingPlatforms);
+            
+            const additionalSocialLinks = verifiedOAuthPlatforms
+              .filter(platform => !existingPlatforms.includes(platform))
+              .map(platform => {
+                const oauthData = profile.oauth_verifications![platform];
+                console.log(`Creating social link for platform ${platform}:`, oauthData);
+                return {
+                  platform,
+                  handle: oauthData.username || '',
+                  url: `https://${platform.toLowerCase()}.com/${oauthData.username || ''}`,
+                  isVerified: oauthData.is_verified,
+                  oauthToken: oauthData.oauth_token
+                };
+              });
+
+            const allSocialLinks = [...socialLinksWithVerification, ...additionalSocialLinks];
+
+            console.log('OAuth verifications from database:', profile.oauth_verifications);
+            console.log('Social links with verification:', allSocialLinks);
+
+            setProfileData({
+              username: profile.username || '',
+              bio: profile.bio || '',
+              profileImage: profile.profile_image_url,
+              socialLinks: allSocialLinks
+            });
+          }
+        } catch (error) {
+          console.error('Error reloading profile after OAuth:', error);
         }
-      });
+      };
+
+      loadProfile();
 
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
