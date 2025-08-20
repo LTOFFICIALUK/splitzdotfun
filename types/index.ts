@@ -203,3 +203,6 @@ export interface MarketplaceFiltersProps {
   onSortChange: (sort: string) => void;
   className?: string;
 }
+
+// Export token types from separate file
+export * from './tokens';

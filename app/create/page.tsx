@@ -441,6 +441,47 @@ const CreateCoin: React.FC = () => {
           console.log(`Contract Address: ${result.tokenAddress}`);
           console.log(`Transaction: ${signedTransaction}`);
           
+          // Save token data to database
+          try {
+            console.log('💾 Saving token data to database...');
+            
+            const royaltyEarners = [
+              {
+                social_or_wallet: "@splitzdotfun",
+                role: "Platform",
+                percentage: 100
+              }
+            ];
+            
+            const saveResponse = await fetch('/api/save-token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                deployer_user_id: null, // Will be set when user system is implemented
+                deployer_social_or_wallet: publicKey,
+                name: formData.name,
+                symbol: formData.symbol,
+                description: formData.description,
+                contract_address: result.tokenAddress,
+                social_link: formData.twitterUrl || null,
+                image_url: formData.imageUrl || null,
+                banner_url: null, // Not implemented yet
+                metadata_url: result.tokenMetadata,
+                royalty_earners: royaltyEarners
+              })
+            });
+            
+            if (saveResponse.ok) {
+              console.log('✅ Token data saved to database');
+            } else {
+              console.warn('⚠️ Failed to save token data to database');
+            }
+          } catch (error) {
+            console.warn('⚠️ Error saving token data:', error);
+          }
+          
           // Only redirect to token page after successful launch
           window.location.href = `/token/${result.tokenAddress}`;
           return;
