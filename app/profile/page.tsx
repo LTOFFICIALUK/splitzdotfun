@@ -170,19 +170,10 @@ const ProfilePage: React.FC = () => {
     console.log(`OAuth URL for ${platform}:`, oauthUrl);
     
     if (oauthUrl) {
-      console.log(`Redirecting to OAuth URL for ${platform}...`);
-      // Ensure any existing query params like ?error=... are cleared before redirect
-      try {
-        window.history.replaceState({}, document.title, window.location.pathname);
-        console.log(`Cleared URL parameters, new URL: ${window.location.href}`);
-      } catch (error) {
-        console.error('Error clearing URL parameters:', error);
-      }
-      console.log(`About to redirect to: ${oauthUrl}`);
-      // Small delay to ensure any cached redirects are cleared
-      setTimeout(() => {
-        window.location.href = oauthUrl;
-      }, 100);
+      console.log(`Redirecting to OAuth URL for ${platform}: ${oauthUrl}`);
+      // Direct navigation: always open provider URL immediately
+      window.location.assign(oauthUrl);
+      return;
     } else {
       console.error(`OAuth not implemented for ${platform}`);
       alert(`OAuth verification for ${platform} is not yet implemented.`);
