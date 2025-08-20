@@ -280,11 +280,82 @@ const CreateCoin: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      alert('Token creation coming soon! This will integrate with the Bags API.');
+    try {
+      // Validate form data
+      if (!isFormValid) {
+        throw new Error('Please fill in all required fields');
+      }
+
+      if (!isConnected || !publicKey) {
+        throw new Error('Please connect your wallet');
+      }
+
+      // Prepare token launch data
+      const tokenData = {
+        name: formData.name,
+        symbol: formData.symbol,
+        description: formData.description,
+        imageUrl: formData.imageUrl,
+        twitterUrl: formData.twitterUrl,
+        initialBuyAmount: parseFloat(formData.initialBuyAmount),
+        royaltyRecipients: royaltyRecipients,
+        creatorWallet: publicKey
+      };
+
+      // Step 1: Create token metadata
+      console.log('🚀 Step 1: Creating token metadata...');
+      console.log('📤 Sending token data:', tokenData);
+      
+      const response = await fetch('/api/launch-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tokenData)
+      });
+      
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create token metadata');
+      }
+
+      const result = await response.json();
+      
+      // Step 2: Launch the token with wallet signing
+      console.log('🚀 Step 2: Launching token with wallet signing...');
+      
+      // Get user's private key (this would need to be handled securely)
+      // For now, we'll show a message about the next steps
+      const successMessage = `🎉 Token metadata created successfully!
+
+Token: ${result.symbol}
+Token Address: ${result.tokenAddress}
+Website: ${result.websiteUrl}
+
+Your token metadata is ready! 
+
+Next steps for full launch:
+1. Wallet signing will be required
+2. Transaction fees will be paid from your wallet
+3. Token will be fully launched on Solana
+
+${result.tokenMetadata ? `Metadata: ${result.tokenMetadata}` : ''}`;
+      
+      alert(successMessage);
+      
+      // For now, redirect to token page
+      // In production, you'd implement the wallet signing flow here
+      window.location.href = result.websiteUrl;
+      
+    } catch (error) {
+      console.error('Token launch error:', error);
+      alert(`❌ Failed to launch token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setIsSubmitting(false);
-    }, 2000);
+    }
   };
 
   const hasManagerAssigned = () => {
@@ -706,7 +777,13 @@ const CreateCoin: React.FC = () => {
                           <input
                             type="checkbox"
                             checked={recipient.isManager}
-                            onChange={(e) => updateRoyaltyRecipient(recipient.id, 'isManager', e.target.checked)}
+                            onChange={(e) => {
+                              updateRoyaltyRecipient(recipient.id, 'isManager', e.target.checked);
+                              // Automatically set role to "Management" when manager is enabled
+                              if (e.target.checked) {
+                                updateRoyaltyRecipient(recipient.id, 'role', 'Management');
+                              }
+                            }}
                             className="sr-only peer"
                           />
                           <div className="w-11 h-6 bg-background-elevated peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-mint rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-mint"></div>

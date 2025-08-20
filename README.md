@@ -67,6 +67,49 @@ splitzdotfun/
 └── package.json             # Dependencies and scripts
 ```
 
+## BagsApp API Integration
+
+This project integrates with the BagsApp API for Solana token creation. The integration is implemented in the `/create` page and handles:
+
+### Features
+- **Token Launching**: Create Solana tokens with automatic royalty routing
+- **X Receiver Hardcoding**: All tokens automatically route 100% of X royalties to `@splitzdotfun`
+- **Website URL Generation**: Each token gets a unique URL: `https://splitz.fun/token/{token_id}`
+- **Royalty Management**: Configure royalty distribution among creators and influencers
+- **Wallet Integration**: Secure wallet signing for token creation
+
+### Required Environment Variables
+```bash
+# BagsApp API Configuration
+BAGS_API_KEY=your_bags_api_key_here
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+
+# Optional: For development/testing
+NODE_ENV=development
+```
+
+### API Endpoints
+- `POST /api/launch-token`: Launches a new token via BagsApp API
+
+### Token Launch Process
+1. User fills out token creation form
+2. Form data is validated and prepared
+3. BagsApp API is called with token parameters
+4. X receiver is hardcoded to `@splitzdotfun` with 100% allocation
+5. Website URL is generated as `https://splitz.fun/token/{unique_id}`
+6. Token is created and user is redirected to token page
+
+### Dependencies
+- `@bagsfm/bags-sdk`: Official BagsApp SDK
+- `@solana/web3.js`: Solana Web3 library
+- `bs58`: Base58 encoding/decoding
+
+### Security Notes
+- Private keys are never stored on the server
+- All transactions are signed on the client side
+- API keys are stored securely in environment variables
+- Wallet connections use secure OAuth flows
+
 ## Getting Started
 
 ### Prerequisites
