@@ -122,7 +122,18 @@ export async function GET(request: NextRequest) {
     }
 
     const userData = await userResponse.json();
-    const username = userData.username || userData.name;
+    console.log('Kick user info response:', userData);
+
+    if (!userData.data || !userData.data[0]) {
+      console.error('No user data found in Kick response');
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=user_info_failed`);
+    }
+
+    const user = userData.data[0];
+    console.log('Kick user data:', user);
+    
+    // Use 'name' field as username since that's what Kick provides
+    const username = user.name;
 
     if (!username) {
       console.error('No username found in Kick response');
