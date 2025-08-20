@@ -75,18 +75,53 @@ export async function GET(request: NextRequest) {
     const userData = await userResponse.json();
     const username = userData.login;
 
-    // Update the user's profile with verification status
-    const { error } = await supabase.rpc('update_oauth_verification', {
-      p_wallet_address: state,
-      p_platform: 'GitHub',
-      p_is_verified: true,
-      p_oauth_token: tokenData.access_token,
-      p_username: username
-    });
+    // Update the user's profile with verification status directly
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .upsert({
+        wallet_address: state,
+        oauth_verifications: {
+          GitHub: {
+            is_verified: true,
+            oauth_token: tokenData.access_token,
+            username: username,
+            verified_at: new Date().toISOString()
+          }
+        }
+      }, {
+        onConflict: 'wallet_address'
+      });
 
-    if (error) {
-      console.error('Database update failed:', error);
+    if (updateError) {
+      console.error('Database update failed:', updateError);
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=database_update_failed`);
+    }
+
+    // Also update social links if they don't exist
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('social_links')
+      .eq('wallet_address', state)
+      .single();
+
+    const existingSocialLinks = existingProfile?.social_links || [];
+    const hasGitHubLink = existingSocialLinks.some((link: any) => link.platform === 'GitHub');
+
+    if (!hasGitHubLink) {
+      const newSocialLinks = [...existingSocialLinks, {
+        platform: 'GitHub',
+        handle: username,
+        url: `https://github.com/${username}`
+      }];
+
+      const { error: socialError } = await supabase
+        .from('profiles')
+        .update({ social_links: newSocialLinks })
+        .eq('wallet_address', state);
+
+      if (socialError) {
+        console.error('Social links update failed:', socialError);
+      }
     }
 
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?verified=GitHub&username=${username}`);
