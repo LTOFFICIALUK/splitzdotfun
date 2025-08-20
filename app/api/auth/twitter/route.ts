@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       grant_type: 'authorization_code',
       client_id: process.env.TWITTER_CLIENT_ID!,
       code,
-      redirect_uri: process.env.TWITTER_REDIRECT_URI!,
+      redirect_uri: 'https://splitz.fun/api/auth/twitter', // Must match the authorization request
       code_verifier: codeVerifier
     });
     
