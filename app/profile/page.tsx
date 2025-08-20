@@ -794,13 +794,7 @@ const ProfilePage: React.FC = () => {
                                 Verify Ownership via OAuth
                               </button>
                             )}
-                            {isEditing && link.isVerified && (
-                              <div className="mt-2 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-                                <p className="text-xs text-green-400">
-                                  ✓ Account verified via OAuth
-                                </p>
-                              </div>
-                            )}
+
                           </div>
                         ))}
                       </div>
