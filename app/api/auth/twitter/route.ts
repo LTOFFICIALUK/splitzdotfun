@@ -15,21 +15,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=missing_params`);
   }
 
-  // Parse state to get wallet address and code verifier
-  let walletAddress: string;
-  let codeVerifier: string;
-  
-  try {
-    // Accept URL-safe base64
-    const normalized = state.replace(/-/g, '+').replace(/_/g, '/');
-    const stateData = JSON.parse(Buffer.from(normalized, 'base64').toString());
-    walletAddress = stateData.wallet;
-    codeVerifier = stateData.code_verifier;
-  } catch (error) {
-    // Fallback for old format where state was just the wallet address
-    walletAddress = state;
-    codeVerifier = 'challenge'; // Fallback code verifier
-  }
+  // For now, use state as wallet address and a fallback code verifier
+  // This is a temporary solution to get the OAuth working
+  const walletAddress = state;
+  const codeVerifier = 'challenge'; // Fallback code verifier
 
   try {
     console.log('Twitter OAuth callback received:', { 
