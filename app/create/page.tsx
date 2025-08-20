@@ -364,11 +364,30 @@ const CreateCoin: React.FC = () => {
           
           let transaction;
           try {
-            // Try to deserialize as a regular transaction first
-            transaction = Transaction.from(Buffer.from(transactionResult.transaction));
+            // The API returns a transaction object, not a serialized buffer
+            if (typeof transactionResult.transaction === 'string') {
+              // If it's a base64 string, decode it
+              const transactionBuffer = Buffer.from(transactionResult.transaction, 'base64');
+              try {
+                transaction = Transaction.from(transactionBuffer);
+              } catch (error) {
+                transaction = VersionedTransaction.deserialize(transactionBuffer);
+              }
+            } else if (Array.isArray(transactionResult.transaction)) {
+              // If it's an array (from our old implementation)
+              const transactionBuffer = Buffer.from(transactionResult.transaction);
+              try {
+                transaction = Transaction.from(transactionBuffer);
+              } catch (error) {
+                transaction = VersionedTransaction.deserialize(transactionBuffer);
+              }
+            } else {
+              // If it's already a transaction object
+              transaction = transactionResult.transaction;
+            }
           } catch (error) {
-            // If that fails, try as a versioned transaction
-            transaction = VersionedTransaction.deserialize(Buffer.from(transactionResult.transaction));
+            console.error('Failed to parse transaction:', error);
+            throw new Error('Invalid transaction format received from API');
           }
           
           // Sign the transaction with the wallet (this will trigger Phantom popup)
@@ -408,11 +427,30 @@ const CreateCoin: React.FC = () => {
             // Convert the launch transaction back to a Transaction object
             let launchTransaction;
             try {
-              // Try to deserialize as a regular transaction first
-              launchTransaction = Transaction.from(Buffer.from(launchTransactionResult.transaction));
+              // The API returns a transaction object, not a serialized buffer
+              if (typeof launchTransactionResult.transaction === 'string') {
+                // If it's a base64 string, decode it
+                const transactionBuffer = Buffer.from(launchTransactionResult.transaction, 'base64');
+                try {
+                  launchTransaction = Transaction.from(transactionBuffer);
+                } catch (error) {
+                  launchTransaction = VersionedTransaction.deserialize(transactionBuffer);
+                }
+              } else if (Array.isArray(launchTransactionResult.transaction)) {
+                // If it's an array (from our old implementation)
+                const transactionBuffer = Buffer.from(launchTransactionResult.transaction);
+                try {
+                  launchTransaction = Transaction.from(transactionBuffer);
+                } catch (error) {
+                  launchTransaction = VersionedTransaction.deserialize(transactionBuffer);
+                }
+              } else {
+                // If it's already a transaction object
+                launchTransaction = launchTransactionResult.transaction;
+              }
             } catch (error) {
-              // If that fails, try as a versioned transaction
-              launchTransaction = VersionedTransaction.deserialize(Buffer.from(launchTransactionResult.transaction));
+              console.error('Failed to parse launch transaction:', error);
+              throw new Error('Invalid launch transaction format received from API');
             }
             
             // Sign the launch transaction with the wallet
