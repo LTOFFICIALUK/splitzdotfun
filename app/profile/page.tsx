@@ -139,12 +139,19 @@ const ProfilePage: React.FC = () => {
   };
 
   const initiateOAuth = async (platform: string) => {
+    console.log(`initiateOAuth called for platform: ${platform}`);
+    console.log(`Current URL: ${window.location.href}`);
+    console.log(`Public key: ${publicKey}`);
+    
     if (!publicKey) {
       alert('Please connect your wallet first');
       return;
     }
 
-
+    console.log(`Environment variables for ${platform}:`, {
+      clientId: platform === 'GitHub' ? process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID : 'N/A',
+      redirectUri: platform === 'GitHub' ? process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI : 'N/A'
+    });
 
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -167,7 +174,11 @@ const ProfilePage: React.FC = () => {
       // Ensure any existing query params like ?error=... are cleared before redirect
       try {
         window.history.replaceState({}, document.title, window.location.pathname);
-      } catch {}
+        console.log(`Cleared URL parameters, new URL: ${window.location.href}`);
+      } catch (error) {
+        console.error('Error clearing URL parameters:', error);
+      }
+      console.log(`About to redirect to: ${oauthUrl}`);
       window.location.href = oauthUrl;
     } else {
       console.error(`OAuth not implemented for ${platform}`);
