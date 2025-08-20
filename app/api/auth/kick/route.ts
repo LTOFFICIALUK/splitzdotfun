@@ -42,19 +42,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=missing_params`);
   }
 
-  // Extract wallet address from state (simplified without PKCE)
+  // Extract wallet address from state (simplified)
   const walletAddress = state;
 
   try {
     console.log('Kick OAuth callback received:', { 
       code: code ? code.substring(0, 10) + '...' : 'undefined',
       walletAddress,
+      codeVerifier: codeVerifier ? codeVerifier.substring(0, 10) + '...' : 'undefined',
       clientId: process.env.KICK_CLIENT_ID ? 'present' : 'missing',
       hasClientSecret: !!process.env.KICK_CLIENT_SECRET,
       redirectUri: 'https://splitz.fun/api/auth/kick'
     });
 
-    // Exchange code for access token (simplified without PKCE)
+    // Exchange code for access token (without PKCE)
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
       client_id: process.env.KICK_CLIENT_ID || '',
