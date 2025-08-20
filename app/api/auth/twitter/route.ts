@@ -53,13 +53,13 @@ export async function GET(request: NextRequest) {
     console.log('Client Secret (first 10 chars):', process.env.TWITTER_CLIENT_SECRET ? process.env.TWITTER_CLIENT_SECRET.substring(0, 10) + '...' : 'undefined');
     console.log('Redirect URI:', process.env.TWITTER_REDIRECT_URI);
     
-    // Per X OAuth 2.0 PKCE flow, Basic auth header is NOT required when sending client_id in body
-    // https://docs.x.com/fundamentals/authentication/overview
+    // X OAuth 2.0 PKCE flow requires Basic auth header with client credentials
+    // https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code
     const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        // No Authorization header for PKCE
+        'Authorization': `Basic ${Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString('base64')}`
       },
       body: tokenRequestBody
     });
