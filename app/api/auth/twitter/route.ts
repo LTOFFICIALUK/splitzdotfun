@@ -94,10 +94,10 @@ export async function GET(request: NextRequest) {
 
     // Update the user's profile with verification status
     const { error } = await supabase.rpc('update_oauth_verification', {
-      wallet_address: walletAddress,
-      platform: 'X',
-      is_verified: true,
-      oauth_token: tokenData.access_token
+      p_wallet_address: walletAddress,
+      p_platform: 'X',
+      p_is_verified: true,
+      p_oauth_token: tokenData.access_token
     });
 
     if (error) {
