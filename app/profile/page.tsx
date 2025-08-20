@@ -211,14 +211,21 @@ const ProfilePage: React.FC = () => {
           if (profile) {
             console.log('Profile loaded successfully:', profile);
             setOriginalProfile(profile);
+            // Check OAuth verification status for each social link
+            const socialLinksWithVerification = (profile.social_links || []).map(link => {
+              const oauthData = profile.oauth_verifications?.[link.platform];
+              return {
+                ...link,
+                isVerified: oauthData?.is_verified || false,
+                oauthToken: oauthData?.oauth_token
+              };
+            });
+
             setProfileData({
               username: profile.username || '',
               bio: profile.bio || '',
               profileImage: profile.profile_image_url,
-              socialLinks: (profile.social_links || []).map(link => ({
-                ...link,
-                isVerified: false // Default to false for existing links
-              }))
+              socialLinks: socialLinksWithVerification
             });
             setImagePreview(profile.profile_image_url);
           } else {

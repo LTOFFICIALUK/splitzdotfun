@@ -26,6 +26,11 @@ export interface Profile {
   bio: string;
   profile_image_url: string | null;
   social_links: SocialLink[];
+  oauth_verifications?: Record<string, {
+    is_verified: boolean;
+    oauth_token?: string;
+    verified_at?: string;
+  }>;
   created_at: string;
   updated_at: string;
 }
