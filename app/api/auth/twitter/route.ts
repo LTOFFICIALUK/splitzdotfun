@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
     console.log('Twitter OAuth callback received:', { 
     code: code ? code.substring(0, 10) + '...' : 'undefined',
     walletAddress, 
-    codeVerifier: codeVerifier ? codeVerifier.substring(0, 10) + '...' : 'undefined'
+    codeVerifier: codeVerifier ? codeVerifier.substring(0, 10) + '...' : 'undefined',
+    codeVerifierLength: codeVerifier ? codeVerifier.length : 0
   });
     
     // Exchange code for access token
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
     
     console.log('Token request body:', tokenRequestBody.toString());
     console.log('Client ID:', process.env.TWITTER_CLIENT_ID);
+    console.log('Client Secret (first 10 chars):', process.env.TWITTER_CLIENT_SECRET ? process.env.TWITTER_CLIENT_SECRET.substring(0, 10) + '...' : 'undefined');
     console.log('Redirect URI:', process.env.TWITTER_REDIRECT_URI);
     
     const authHeader = `Basic ${Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString('base64')}`;
@@ -65,7 +67,8 @@ export async function GET(request: NextRequest) {
       console.error('Twitter token exchange failed:', {
         status: tokenResponse.status,
         statusText: tokenResponse.statusText,
-        error: errorText
+        error: errorText,
+        headers: Object.fromEntries(tokenResponse.headers.entries())
       });
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=token_exchange_failed`);
     }
