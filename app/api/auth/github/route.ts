@@ -82,26 +82,32 @@ export async function GET(request: NextRequest) {
     const username = userData.login;
 
     // Update the user's profile with verification status directly
+    const updateData = {
+      wallet_address: state,
+      oauth_verifications: {
+        GitHub: {
+          is_verified: true,
+          oauth_token: tokenData.access_token,
+          username: username,
+          verified_at: new Date().toISOString()
+        }
+      }
+    };
+
+    console.log('GitHub OAuth: Attempting database update with data:', updateData);
+
     const { error: updateError } = await supabase
       .from('profiles')
-      .upsert({
-        wallet_address: state,
-        oauth_verifications: {
-          GitHub: {
-            is_verified: true,
-            oauth_token: tokenData.access_token,
-            username: username,
-            verified_at: new Date().toISOString()
-          }
-        }
-      }, {
+      .upsert(updateData, {
         onConflict: 'wallet_address'
       });
 
     if (updateError) {
-      console.error('Database update failed:', updateError);
+      console.error('GitHub OAuth: Database update failed:', updateError);
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=database_update_failed`);
     }
+
+    console.log('GitHub OAuth: Database update successful');
 
     // Also update social links if they don't exist
     const { data: existingProfile } = await supabase
