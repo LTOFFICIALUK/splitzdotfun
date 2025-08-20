@@ -18,7 +18,43 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Check if Supabase is properly configured
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Supabase configuration missing');
+      return NextResponse.json(
+        { error: 'Database configuration error' },
+        { status: 500 }
+      );
+    }
+
     console.log('🔍 Fetching tokens for user:', userIdentifier);
+
+    // First, let's test if the tables exist by doing a simple query
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('tokens')
+        .select('id')
+        .limit(1);
+      
+      if (testError) {
+        console.error('❌ Database tables may not exist:', testError);
+        return NextResponse.json(
+          { 
+            error: 'Database tables not found. Please run the SQL setup first.',
+            details: testError.message
+          },
+          { status: 500 }
+        );
+      }
+      
+      console.log('✅ Database connection successful');
+    } catch (error) {
+      console.error('❌ Database connection failed:', error);
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 500 }
+      );
+    }
 
     // Fetch tokens where user is the current owner
     const { data: ownedTokens, error: ownedError } = await supabase
@@ -157,9 +193,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     console.log(`✅ Found ${result.owned.length} owned, ${result.royalty.length} royalty, ${result.deployed.length} deployed tokens`);
 
+    // Return empty arrays if no tokens found (this is normal for new users)
     return NextResponse.json({
       success: true,
-      data: result
+      data: result,
+      message: 'No tokens found for this user yet'
     });
 
   } catch (error) {
