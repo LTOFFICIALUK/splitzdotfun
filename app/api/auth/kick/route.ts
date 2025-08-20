@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user info
-    const userResponse = await fetch('https://kick.com/api/user', {
+    const userResponse = await fetch('https://kick.com/api/v1/user', {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
         'Accept': 'application/json'
