@@ -89,17 +89,29 @@ export async function GET(request: NextRequest) {
     const userData = await userResponse.json();
     const username = userData.login;
 
-    // Update the user's profile with verification status directly
+    // First, get the existing profile to preserve other OAuth verifications
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('oauth_verifications')
+      .eq('wallet_address', state)
+      .single();
+
+    // Merge existing OAuth verifications with the new GitHub verification
+    const existingOAuthVerifications = existingProfile?.oauth_verifications || {};
+    const updatedOAuthVerifications = {
+      ...existingOAuthVerifications,
+      GitHub: {
+        is_verified: true,
+        oauth_token: tokenData.access_token,
+        username: username,
+        verified_at: new Date().toISOString()
+      }
+    };
+
+    // Update the user's profile with verification status
     const updateData = {
       wallet_address: state,
-      oauth_verifications: {
-        GitHub: {
-          is_verified: true,
-          oauth_token: tokenData.access_token,
-          username: username,
-          verified_at: new Date().toISOString()
-        }
-      }
+      oauth_verifications: updatedOAuthVerifications
     };
 
     console.log('GitHub OAuth: Attempting database update with data:', updateData);
