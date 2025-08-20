@@ -92,8 +92,8 @@ export async function GET(request: NextRequest) {
     const userData = await userResponse.json();
     const username = userData.data.username;
 
-    // Update the user's profile with verification status
-    const { error } = await supabase.rpc('update_oauth_verification', {
+    // Update the user's profile with verification status and social links
+    const { error } = await supabase.rpc('update_oauth_verification_and_social_links', {
       p_wallet_address: walletAddress,
       p_platform: 'X',
       p_is_verified: true,
