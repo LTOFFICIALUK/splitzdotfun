@@ -29,13 +29,17 @@ import { useWallet } from '@/components/ui/WalletProvider';
 import { getProfile, createProfile, updateProfile, uploadProfileImage, testBucketAccess, testSupabaseConfig, Profile } from '@/lib/supabase';
 
 // PKCE helper functions for OAuth 2.0
+// RFC 7636: code_verifier must be 43-128 chars of [A-Z a-z 0-9 - . _ ~]
 const generateCodeVerifier = () => {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return btoa(Array.from(array, byte => String.fromCharCode(byte)).join(''))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+  const length = 64; // within 43-128
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const randomValues = new Uint32Array(length);
+  crypto.getRandomValues(randomValues);
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += charset[randomValues[i] % charset.length];
+  }
+  return result;
 };
 
 const generateCodeChallenge = async (verifier: string) => {
