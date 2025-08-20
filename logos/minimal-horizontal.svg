@@ -1,0 +1,24 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <circle cx="60" cy="60" r="55" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+  
+  <!-- Main circle -->
+  <circle cx="60" cy="60" r="30" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2"/>
+  
+  <!-- Horizontal split line -->
+  <path d="M 30 60 L 90 60" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Top half -->
+  <path d="M 60 60 L 30 60 L 30 30 L 60 30 Z" fill="#ffffff" opacity="0.9"/>
+  <path d="M 60 60 L 90 60 L 90 30 L 60 30 Z" fill="#ffffff" opacity="0.3"/>
+  
+  <!-- Bottom half -->
+  <path d="M 60 60 L 90 60 L 90 90 L 60 90 Z" fill="#ffffff" opacity="0.9"/>
+  <path d="M 60 60 L 30 60 L 30 90 L 60 90 Z" fill="#ffffff" opacity="0.3"/>
+  
+  <!-- Center accent -->
+  <circle cx="60" cy="60" r="4" fill="#1d4ed8"/>
+  
+  <!-- Subtle shadow -->
+  <circle cx="62" cy="62" r="30" fill="none" stroke="#e5e7eb" stroke-width="1" opacity="0.5"/>
+</svg>
