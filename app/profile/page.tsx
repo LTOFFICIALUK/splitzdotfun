@@ -160,7 +160,10 @@ const ProfilePage: React.FC = () => {
     };
     
     const oauthUrl = oauthUrls[platform as keyof typeof oauthUrls];
+    console.log(`OAuth URL for ${platform}:`, oauthUrl);
+    
     if (oauthUrl) {
+      console.log(`Redirecting to OAuth URL for ${platform}...`);
       window.location.href = oauthUrl;
     } else {
       console.error(`OAuth not implemented for ${platform}`);

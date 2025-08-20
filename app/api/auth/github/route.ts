@@ -7,11 +7,16 @@ const supabase = createClient(
 );
 
 export async function GET(request: NextRequest) {
+  console.log('GitHub OAuth callback received request:', request.url);
+  
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state'); // This will contain the wallet address
   
+  console.log('GitHub OAuth callback parameters:', { code: code ? 'present' : 'missing', state: state ? 'present' : 'missing' });
+  
   if (!code || !state) {
+    console.error('GitHub OAuth missing parameters:', { code: !!code, state: !!state });
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=missing_params`);
   }
 
