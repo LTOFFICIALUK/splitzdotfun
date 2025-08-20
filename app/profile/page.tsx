@@ -38,12 +38,20 @@ const generateCodeVerifier = () => {
     .replace(/=/g, '');
 };
 
-const generateCodeChallenge = () => {
+const generateCodeChallenge = async () => {
   const verifier = generateCodeVerifier();
   
-  // For simplicity, we'll use the verifier as the challenge (S256 method)
-  // In production, you should hash the verifier with SHA256
-  return verifier;
+  // Hash the verifier with SHA256 for the challenge
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashBase64 = btoa(String.fromCharCode(...hashArray));
+  
+  return hashBase64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
 };
 
 const generateOAuthState = (walletAddress: string, codeVerifier: string) => {
@@ -131,7 +139,7 @@ const ProfilePage: React.FC = () => {
 
 
     const codeVerifier = generateCodeVerifier();
-    const codeChallenge = generateCodeChallenge();
+    const codeChallenge = await generateCodeChallenge();
     
     const oauthUrls = {
       'X': `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/api/auth/twitter')}&scope=users.read&state=${generateOAuthState(publicKey, codeVerifier)}&code_challenge=${codeChallenge}&code_challenge_method=S256`,

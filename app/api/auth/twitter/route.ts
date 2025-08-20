@@ -30,23 +30,34 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    console.log('Twitter OAuth callback received:', { code, walletAddress, codeVerifier });
+    
     // Exchange code for access token
+    const tokenRequestBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: process.env.TWITTER_REDIRECT_URI!,
+      code_verifier: codeVerifier
+    });
+    
+    console.log('Token request body:', tokenRequestBody.toString());
+    
     const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': `Basic ${Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString('base64')}`
       },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: process.env.TWITTER_REDIRECT_URI!,
-        code_verifier: codeVerifier
-      })
+      body: tokenRequestBody
     });
 
     if (!tokenResponse.ok) {
-      console.error('Twitter token exchange failed:', await tokenResponse.text());
+      const errorText = await tokenResponse.text();
+      console.error('Twitter token exchange failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText
+      });
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=token_exchange_failed`);
     }
 
