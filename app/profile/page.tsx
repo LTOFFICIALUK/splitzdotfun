@@ -161,7 +161,7 @@ const ProfilePage: React.FC = () => {
     const oauthUrls = {
       'X': `https://twitter.com/i/oauth2/authorize?response_type=code&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/api/auth/twitter')}&scope=${encodeURIComponent('tweet.read users.read offline.access')}&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${encodeURIComponent(generateOAuthState(publicKey, codeVerifier))}&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}`,
       'YouTube': `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_YOUTUBE_REDIRECT_URI || 'https://splitz.fun/api/auth/youtube')}&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/userinfo.profile%20https://www.googleapis.com/auth/userinfo.email%20openid&response_type=code&state=${publicKey}`,
-      'GitHub': `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI || 'https://splitz.fun/api/auth/github')}&scope=read:user&state=${publicKey}`,
+      'GitHub': `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI || 'https://splitz.fun/api/auth/github')}&scope=read:user&state=${publicKey}&timestamp=${Date.now()}`,
       'Twitch': `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITCH_REDIRECT_URI || 'https://splitz.fun/api/auth/twitch')}&scope=user:read:email&state=${publicKey}`,
       'TikTok': `https://www.tiktok.com/v2/auth/authorize?client_key=${process.env.NEXT_PUBLIC_TIKTOK_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TIKTOK_REDIRECT_URI || 'https://splitz.fun/api/auth/tiktok')}&scope=user.info.basic&response_type=code&state=${publicKey}`
     };
@@ -179,7 +179,10 @@ const ProfilePage: React.FC = () => {
         console.error('Error clearing URL parameters:', error);
       }
       console.log(`About to redirect to: ${oauthUrl}`);
-      window.location.href = oauthUrl;
+      // Small delay to ensure any cached redirects are cleared
+      setTimeout(() => {
+        window.location.href = oauthUrl;
+      }, 100);
     } else {
       console.error(`OAuth not implemented for ${platform}`);
       alert(`OAuth verification for ${platform} is not yet implemented.`);
