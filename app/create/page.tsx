@@ -331,25 +331,8 @@ const CreateCoin: React.FC = () => {
         try {
           console.log('🔐 Launching token on-chain...');
           
-          // Show a confirmation dialog for the user
-          const shouldLaunch = confirm(`🚀 Token metadata created successfully!
-
-Token: ${result.symbol}
-Contract Address: ${result.tokenAddress}
-
-To complete the token launch, you need to sign a transaction with your wallet.
-This will:
-• Deploy the token on Solana
-• Pay ~0.05 SOL in transaction fees
-• Make an initial buy of ${formData.initialBuyAmount} SOL
-
-Do you want to proceed with the on-chain launch?`);
-
-          if (!shouldLaunch) {
-            console.log('⚠️ User cancelled token launch');
-            window.location.href = `/token/${result.tokenAddress}`;
-            return;
-          }
+          // Proceed directly with token launch - no confirmation dialog
+          console.log('🚀 Proceeding with token launch...');
 
                     console.log('🔐 User confirmed launch, creating transaction for wallet signing...');
           
