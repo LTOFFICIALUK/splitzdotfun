@@ -121,6 +121,38 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   };
 
+  // Sign a transaction with Phantom wallet
+  const signTransaction = async (transaction: any): Promise<any> => {
+    try {
+      if (!wallet) {
+        throw new Error('Wallet not connected');
+      }
+      
+      // Sign the transaction
+      const signedTransaction = await wallet.signTransaction(transaction);
+      return signedTransaction;
+    } catch (error) {
+      console.error('Failed to sign transaction:', error);
+      throw error;
+    }
+  };
+
+  // Sign and send a transaction
+  const signAndSendTransaction = async (transaction: any): Promise<string> => {
+    try {
+      if (!wallet) {
+        throw new Error('Wallet not connected');
+      }
+      
+      // Sign and send the transaction
+      const signature = await wallet.signAndSendTransaction(transaction);
+      return signature.signature;
+    } catch (error) {
+      console.error('Failed to sign and send transaction:', error);
+      throw error;
+    }
+  };
+
   // Disconnect from Phantom wallet
   const disconnect = async (): Promise<void> => {
     try {
@@ -242,6 +274,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     isConnecting,
     connect,
     disconnect,
+    signTransaction,
+    signAndSendTransaction,
     wallet,
   };
 

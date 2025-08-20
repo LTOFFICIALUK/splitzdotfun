@@ -23,6 +23,8 @@ export interface WalletContextState {
   isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
+  signTransaction: (transaction: any) => Promise<any>;
+  signAndSendTransaction: (transaction: any) => Promise<string>;
   wallet: any;
 }
 
@@ -39,6 +41,8 @@ export interface PhantomProvider {
   disconnect: () => Promise<void>;
   on: (event: string, callback: (args: any) => void) => void;
   publicKey: { toBytes(): Uint8Array } | null;
+  signTransaction: (transaction: any) => Promise<any>;
+  signAndSendTransaction: (transaction: any) => Promise<{ signature: string }>;
 }
 
 declare global {

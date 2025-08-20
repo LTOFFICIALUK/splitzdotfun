@@ -67,7 +67,7 @@ const ROLES = [
 ] as const;
 
 const CreateCoin: React.FC = () => {
-  const { isConnected, publicKey } = useWallet();
+  const { isConnected, publicKey, signAndSendTransaction } = useWallet();
   const [formData, setFormData] = useState({
     name: '',
     symbol: '',
@@ -328,54 +328,61 @@ const CreateCoin: React.FC = () => {
       console.log('🚀 Step 2: Launching token with wallet signing...');
       
       if (result.needsSigning) {
-        // Ask user to sign the transaction
-        const shouldSign = confirm(`🎯 Token metadata created! 
+        try {
+          console.log('🔐 Creating launch transaction...');
+          
+          // Create the launch transaction
+          const launchResponse = await fetch('/api/create-launch-transaction', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              tokenMint: result.tokenAddress,
+              tokenMetadata: result.tokenMetadata,
+              initialBuyAmount: parseFloat(formData.initialBuyAmount),
+              creatorWallet: publicKey
+            })
+          });
 
-Token: ${result.symbol}
-Token Address: ${result.tokenAddress}
+          if (!launchResponse.ok) {
+            throw new Error('Failed to create launch transaction');
+          }
 
-To complete the token launch, you need to sign a transaction with your wallet.
-
-This will:
-• Deploy the token on Solana
-• Pay ~0.05 SOL in transaction fees
-• Make an initial buy of ${formData.initialBuyAmount} SOL
-
-Do you want to proceed with signing?`);
-
-        if (shouldSign) {
-          // Here we would need to get the user's private key securely
-          // For now, we'll show instructions
-          alert(`🔐 Wallet Signing Required
-
-To complete the token launch, you need to:
-
-1. Export your private key from your wallet
-2. Sign the transaction on-chain
-3. Pay the deployment fees
-
-This is a security-sensitive operation that requires your private key.
-
-For now, your token metadata is ready and can be launched later.`);
+          const launchResult = await launchResponse.json();
+          
+          console.log('🔐 Transaction created, requesting wallet signature...');
+          
+          // Convert the transaction back to a Transaction object
+          const { Transaction } = await import('@solana/web3.js');
+          const transaction = Transaction.from(Buffer.from(launchResult.transaction));
+          
+          // Sign the transaction with the wallet
+          const signedTransaction = await signAndSendTransaction(transaction);
+          
+          console.log('✅ Transaction signed and sent:', signedTransaction);
+          
+          // Show success and redirect
+          console.log('🎉 Token launched successfully!');
+          console.log(`Token: ${result.symbol}`);
+          console.log(`Contract Address: ${result.tokenAddress}`);
+          console.log(`Transaction: ${signedTransaction}`);
+          
+          // Redirect to token page
+          window.location.href = `/token/${result.tokenAddress}`;
+          return;
+          
+        } catch (error) {
+          console.error('❌ Failed to launch token:', error);
+          
+          // Still redirect to token page, but show error in console
+          console.log('⚠️ Token metadata created, but launch failed. You can try launching later.');
+          window.location.href = `/token/${result.tokenAddress}`;
+          return;
         }
       }
       
-      const successMessage = `🎉 Token metadata created successfully!
-
-Token: ${result.symbol}
-Contract Address: ${result.tokenAddress}
-Token Page: /token/${result.tokenAddress}
-
-Your token metadata is ready! 
-
-Status: Metadata created, ready for on-chain launch
-Next: Wallet signing required to deploy on Solana
-
-${result.tokenMetadata ? `Metadata: ${result.tokenMetadata}` : ''}`;
-      
-      alert(successMessage);
-      
-      // Redirect to token page using the contract address
+      // Fallback redirect
       window.location.href = `/token/${result.tokenAddress}`;
       
     } catch (error) {
