@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log('Twitter OAuth callback received:', { code, walletAddress, codeVerifier });
+    console.log('Twitter OAuth callback received:', { 
+    code: code ? code.substring(0, 10) + '...' : 'undefined',
+    walletAddress, 
+    codeVerifier: codeVerifier ? codeVerifier.substring(0, 10) + '...' : 'undefined'
+  });
     
     // Exchange code for access token
     const tokenRequestBody = new URLSearchParams({
@@ -41,12 +45,17 @@ export async function GET(request: NextRequest) {
     });
     
     console.log('Token request body:', tokenRequestBody.toString());
+    console.log('Client ID:', process.env.TWITTER_CLIENT_ID);
+    console.log('Redirect URI:', process.env.TWITTER_REDIRECT_URI);
+    
+    const authHeader = `Basic ${Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString('base64')}`;
+    console.log('Authorization header (first 20 chars):', authHeader.substring(0, 20) + '...');
     
     const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString('base64')}`
+        'Authorization': authHeader
       },
       body: tokenRequestBody
     });
