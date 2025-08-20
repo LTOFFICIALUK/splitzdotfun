@@ -101,12 +101,14 @@ const ProfilePage: React.FC = () => {
       return;
     }
 
+
+
     const oauthUrls = {
-      'X': `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/auth/twitter/callback')}&scope=tweet.read%20users.read&state=${publicKey}`,
-      'YouTube': `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_YOUTUBE_REDIRECT_URI || 'https://splitz.fun/auth/youtube/callback')}&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/userinfo.profile&response_type=code&state=${publicKey}`,
-      'GitHub': `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI || 'https://splitz.fun/auth/github/callback')}&scope=read:user&state=${publicKey}`,
-      'Twitch': `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITCH_REDIRECT_URI || 'https://splitz.fun/auth/twitch/callback')}&scope=user:read:email&state=${publicKey}`,
-      'TikTok': `https://www.tiktok.com/v2/auth/authorize?client_key=${process.env.NEXT_PUBLIC_TIKTOK_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TIKTOK_REDIRECT_URI || 'https://splitz.fun/auth/tiktok/callback')}&scope=user.info.basic&response_type=code&state=${publicKey}`
+      'X': `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/api/auth/twitter')}&scope=users.read&state=${publicKey}`,
+      'YouTube': `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_YOUTUBE_REDIRECT_URI || 'https://splitz.fun/api/auth/youtube')}&scope=https://www.googleapis.com/auth/youtube%20https://www.googleapis.com/auth/userinfo.profile&response_type=code&state=${publicKey}`,
+      'GitHub': `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI || 'https://splitz.fun/api/auth/github')}&scope=read:user&state=${publicKey}`,
+      'Twitch': `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITCH_REDIRECT_URI || 'https://splitz.fun/api/auth/twitch')}&scope=user:read:email&state=${publicKey}`,
+      'TikTok': `https://www.tiktok.com/v2/auth/authorize?client_key=${process.env.NEXT_PUBLIC_TIKTOK_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TIKTOK_REDIRECT_URI || 'https://splitz.fun/api/auth/tiktok')}&scope=user.info.basic&response_type=code&state=${publicKey}`
     };
     
     const oauthUrl = oauthUrls[platform as keyof typeof oauthUrls];
