@@ -9,7 +9,16 @@ const supabase = createClient(
 export async function GET(request: NextRequest) {
   console.log('Kick OAuth callback received request:', request.url);
   
+  // Log request headers to see if there are any clues
+  const headers = Object.fromEntries(request.headers.entries());
+  console.log('Kick OAuth request headers:', headers);
+  
   const { searchParams } = new URL(request.url);
+  
+  // Log ALL search parameters to see what Kick is actually sending
+  const allParams = Object.fromEntries(searchParams.entries());
+  console.log('Kick OAuth ALL callback parameters:', allParams);
+  
   const code = searchParams.get('code');
   const state = searchParams.get('state'); // This will contain the wallet address and code_verifier
   const error = searchParams.get('error');
