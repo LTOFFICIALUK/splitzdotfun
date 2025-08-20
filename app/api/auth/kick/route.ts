@@ -90,12 +90,18 @@ export async function GET(request: NextRequest) {
     const userResponse = await fetch('https://kick.com/api/v1/user', {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
     });
 
+    console.log('Kick user info response status:', userResponse.status);
+    console.log('Kick user info response headers:', Object.fromEntries(userResponse.headers.entries()));
+
     if (!userResponse.ok) {
-      console.error('Kick user info failed:', await userResponse.text());
+      const errorText = await userResponse.text();
+      console.error('Kick user info failed:', errorText);
+      console.error('Kick user info failed - status:', userResponse.status);
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=user_info_failed`);
     }
 
