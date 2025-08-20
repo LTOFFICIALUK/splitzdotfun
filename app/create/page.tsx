@@ -351,9 +351,9 @@ Do you want to proceed with the on-chain launch?`);
             return;
           }
 
-          console.log('🔐 User confirmed launch, creating transaction for wallet signing...');
+                    console.log('🔐 User confirmed launch, creating transaction for wallet signing...');
           
-          // Create the transaction for signing
+          // Step 1: Create the transaction for signing
           const transactionResponse = await fetch('/api/create-launch-transaction', {
             method: 'POST',
             headers: {
@@ -374,15 +374,57 @@ Do you want to proceed with the on-chain launch?`);
           const transactionResult = await transactionResponse.json();
           
           console.log('🔐 Transaction created, requesting wallet signature...');
+          console.log('Message:', transactionResult.message);
           
           // Convert the transaction back to a Transaction object
           const { Transaction } = await import('@solana/web3.js');
           const transaction = Transaction.from(Buffer.from(transactionResult.transaction));
           
           // Sign the transaction with the wallet (this will trigger Phantom popup)
-          const signedTransaction = await signAndSendTransaction(transaction);
+          let signedTransaction = await signAndSendTransaction(transaction);
           
-                    console.log('✅ Transaction signed and sent:', signedTransaction);
+          console.log('✅ Transaction signed and sent:', signedTransaction);
+          
+          // If this was a config transaction, we need to create the launch transaction
+          if (transactionResult.isConfigTransaction) {
+            console.log('🔧 Config transaction signed, now creating launch transaction...');
+            
+            // Wait a moment for the config transaction to be confirmed
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Create the launch transaction
+            const launchTransactionResponse = await fetch('/api/create-launch-transaction', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                tokenMint: result.tokenAddress,
+                tokenMetadata: result.tokenMetadata,
+                initialBuyAmount: parseFloat(formData.initialBuyAmount),
+                creatorWallet: publicKey
+              })
+            });
+
+            if (!launchTransactionResponse.ok) {
+              throw new Error('Failed to create launch transaction');
+            }
+
+            const launchTransactionResult = await launchTransactionResponse.json();
+            
+            console.log('🔐 Launch transaction created, requesting wallet signature...');
+            
+            // Convert the launch transaction back to a Transaction object
+            const launchTransaction = Transaction.from(Buffer.from(launchTransactionResult.transaction));
+            
+            // Sign the launch transaction with the wallet
+            const signedLaunchTransaction = await signAndSendTransaction(launchTransaction);
+            
+            console.log('✅ Launch transaction signed and sent:', signedLaunchTransaction);
+            
+            // Update the signed transaction for the success message
+            signedTransaction = signedLaunchTransaction;
+          }
           
           console.log('✅ Token launched successfully!');
           console.log(`Token: ${result.symbol}`);

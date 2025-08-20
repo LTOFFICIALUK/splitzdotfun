@@ -21,6 +21,8 @@ interface CreateLaunchTransactionResponse {
   success: boolean;
   transaction: any; // Serialized transaction
   message: string;
+  isConfigTransaction?: boolean;
+  configKey?: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -51,12 +53,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Get existing config or config creation TX
     const configResponse = await sdk.config.getOrCreateConfig(creatorPublicKey);
 
-    let configTransaction = null;
-    
-    // Config does not exist, create it
+    // If config doesn't exist, we need to create it first
     if (configResponse.transaction) { 
       console.log('🔧 Config does not exist, creating configuration transaction...');
-      configTransaction = configResponse.transaction;
+      
+      // Return the config creation transaction for signing
+      const serializedConfigTransaction = configResponse.transaction.serialize();
+      
+      const response: CreateLaunchTransactionResponse = {
+        success: true,
+        transaction: Array.from(serializedConfigTransaction),
+        message: 'Configuration transaction created! Sign this first, then we\'ll create the launch transaction.',
+        isConfigTransaction: true,
+        configKey: configResponse.configKey.toString()
+      };
+
+      console.log('✅ Config transaction created successfully');
+      return NextResponse.json(response);
     }
     else {
       console.log('♻️  Config already exists, reusing config key:', configResponse.configKey.toString());
@@ -73,21 +86,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       configKey: configResponse.configKey,
     });
 
-    // If we need to create config, combine the transactions
-    let finalTransaction = tokenLaunchTransaction;
-    if (configTransaction) {
-      // For now, we'll return the config transaction first
-      // In a full implementation, you'd combine them or handle them separately
-      finalTransaction = configTransaction;
-    }
-
-    // Serialize the transaction for frontend signing
-    const serializedTransaction = finalTransaction.serialize();
+    // Return the launch transaction for signing
+    const serializedLaunchTransaction = tokenLaunchTransaction.serialize();
 
     const response: CreateLaunchTransactionResponse = {
       success: true,
-      transaction: Array.from(serializedTransaction), // Convert to array for JSON
-      message: 'Launch transaction created successfully! Ready for signing.'
+      transaction: Array.from(serializedLaunchTransaction), // Convert to array for JSON
+      message: 'Launch transaction created successfully! Ready for signing.',
+      isConfigTransaction: false
     };
 
     console.log('✅ Launch transaction created successfully');
