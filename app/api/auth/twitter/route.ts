@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
   let codeVerifier: string;
   
   try {
-    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    // Accept URL-safe base64
+    const normalized = state.replace(/-/g, '+').replace(/_/g, '/');
+    const stateData = JSON.parse(Buffer.from(normalized, 'base64').toString());
     walletAddress = stateData.wallet;
     codeVerifier = stateData.code_verifier;
   } catch (error) {

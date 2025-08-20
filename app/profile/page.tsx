@@ -52,13 +52,16 @@ const generateCodeChallenge = async (verifier: string) => {
     .replace(/=/g, '');
 };
 
+const toBase64Url = (base64: string) => base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+
 const generateOAuthState = (walletAddress: string, codeVerifier: string) => {
   // Combine wallet address and code verifier in state parameter
   const stateData = {
     wallet: walletAddress,
     code_verifier: codeVerifier
   };
-  return btoa(JSON.stringify(stateData));
+  const b64 = btoa(JSON.stringify(stateData));
+  return toBase64Url(b64);
 };
 
 interface ProfileSocialLink {
@@ -142,7 +145,7 @@ const ProfilePage: React.FC = () => {
     // console.log('PKCE lengths', { v: codeVerifier.length, c: codeChallenge.length });
     
     const oauthUrls = {
-      'X': `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/api/auth/twitter')}&scope=users.read&state=${generateOAuthState(publicKey, codeVerifier)}&code_challenge=${codeChallenge}&code_challenge_method=S256`,
+      'X': `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITTER_REDIRECT_URI || 'https://splitz.fun/api/auth/twitter')}&scope=${encodeURIComponent('users.read')}&state=${encodeURIComponent(generateOAuthState(publicKey, codeVerifier))}&code_challenge=${codeChallenge}&code_challenge_method=S256`,
       'YouTube': `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_YOUTUBE_REDIRECT_URI || 'https://splitz.fun/api/auth/youtube')}&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/userinfo.profile%20https://www.googleapis.com/auth/userinfo.email%20openid&response_type=code&state=${publicKey}`,
       'GitHub': `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI || 'https://splitz.fun/api/auth/github')}&scope=read:user&state=${publicKey}`,
       'Twitch': `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITCH_REDIRECT_URI || 'https://splitz.fun/api/auth/twitch')}&scope=user:read:email&state=${publicKey}`,
