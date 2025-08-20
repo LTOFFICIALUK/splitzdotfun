@@ -331,16 +331,79 @@ const CreateCoin: React.FC = () => {
         try {
           console.log('🔐 Launching token on-chain...');
           
-          // For now, we'll show that the token is ready for launch
-          // The actual on-chain launch requires more complex transaction handling
-          console.log('✅ Token metadata created successfully!');
-          console.log(`Token: ${result.symbol}`);
-          console.log(`Contract Address: ${result.tokenAddress}`);
-          console.log('📝 Token is ready for on-chain launch');
-          console.log('💡 To complete the launch, you would need to:');
-          console.log('   1. Create the launch transaction');
-          console.log('   2. Sign it with your wallet');
-          console.log('   3. Send it to the blockchain');
+          // Show a confirmation dialog for the user
+          const shouldLaunch = confirm(`🚀 Token metadata created successfully!
+
+Token: ${result.symbol}
+Contract Address: ${result.tokenAddress}
+
+To complete the token launch, you need to sign a transaction with your wallet.
+This will:
+• Deploy the token on Solana
+• Pay ~0.05 SOL in transaction fees
+• Make an initial buy of ${formData.initialBuyAmount} SOL
+
+Do you want to proceed with the on-chain launch?`);
+
+          if (!shouldLaunch) {
+            console.log('⚠️ User cancelled token launch');
+            window.location.href = `/token/${result.tokenAddress}`;
+            return;
+          }
+
+          console.log('🔐 User confirmed launch, requesting wallet signature...');
+          
+          // Request the user's private key for signing
+          const privateKey = prompt(`🔐 To complete the token launch, please provide your wallet's private key.
+
+⚠️  WARNING: This is a security-sensitive operation.
+Your private key will only be used to sign the transaction and will not be stored.
+
+Please export your private key from your wallet and paste it here:`);
+
+          if (!privateKey) {
+            console.log('⚠️ No private key provided, cancelling launch');
+            window.location.href = `/token/${result.tokenAddress}`;
+            return;
+          }
+
+          console.log('🔐 Private key provided, launching token...');
+          
+          // Call the final launch endpoint
+          const launchResponse = await fetch('/api/launch-token-final', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              tokenMint: result.tokenAddress,
+              tokenMetadata: result.tokenMetadata,
+              initialBuyAmount: parseFloat(formData.initialBuyAmount),
+              creatorWallet: publicKey,
+              privateKey: privateKey
+            })
+          });
+
+          if (!launchResponse.ok) {
+            const errorData = await launchResponse.json();
+            throw new Error(errorData.error || 'Failed to launch token');
+          }
+
+          const launchResult = await launchResponse.json();
+          
+          console.log('✅ Token launched successfully!');
+          console.log(`Token: ${launchResult.symbol}`);
+          console.log(`Contract Address: ${launchResult.tokenAddress}`);
+          console.log(`Transaction: ${launchResult.transactionSignature}`);
+          
+          // Show success message
+          alert(`🎉 Token launched successfully!
+
+Token: ${launchResult.symbol}
+Contract Address: ${launchResult.tokenAddress}
+Transaction: ${launchResult.transactionSignature}
+
+Your token is now live on Solana!`);
           
           // Redirect to token page
           window.location.href = `/token/${result.tokenAddress}`;
@@ -349,8 +412,12 @@ const CreateCoin: React.FC = () => {
         } catch (error) {
           console.error('❌ Failed to launch token:', error);
           
-          // Still redirect to token page, but show error in console
-          console.log('⚠️ Token metadata created, but launch failed. You can try launching later.');
+          // Show error message
+          alert(`❌ Failed to launch token: ${error instanceof Error ? error.message : 'Unknown error'}
+
+Your token metadata was created successfully and can be launched later.`);
+          
+          // Still redirect to token page
           window.location.href = `/token/${result.tokenAddress}`;
           return;
         }
