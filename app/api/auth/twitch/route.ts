@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         code,
         client_id: process.env.TWITCH_CLIENT_ID!,
         client_secret: process.env.TWITCH_CLIENT_SECRET!,
-        redirect_uri: process.env.TWITCH_REDIRECT_URI!
+        redirect_uri: 'https://splitz.fun/api/auth/twitch'
       })
     });
 
@@ -59,13 +59,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?error=user_info_failed`);
     }
 
+    // First, get the existing profile to preserve other OAuth verifications
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('oauth_verifications')
+      .eq('wallet_address', state)
+      .single();
+
+    // Merge existing OAuth verifications with the new Twitch verification
+    const existingOAuthVerifications = existingProfile?.oauth_verifications || {};
+    const updatedOAuthVerifications = {
+      ...existingOAuthVerifications,
+      Twitch: {
+        is_verified: true,
+        oauth_token: tokenData.access_token,
+        username: username,
+        verified_at: new Date().toISOString()
+      }
+    };
+
     // Update the user's profile with verification status
-    const { error } = await supabase.rpc('update_oauth_verification', {
+    const updateData = {
       wallet_address: state,
-      platform: 'Twitch',
-      is_verified: true,
-      oauth_token: tokenData.access_token
-    });
+      oauth_verifications: updatedOAuthVerifications
+    };
+
+    const { error } = await supabase
+      .from('profiles')
+      .upsert(updateData, {
+        onConflict: 'wallet_address'
+      });
 
     if (error) {
       console.error('Database update failed:', error);
