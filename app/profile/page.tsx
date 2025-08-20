@@ -512,9 +512,9 @@ const ProfilePage: React.FC = () => {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-background-dark">
+      <div className="min-h-screen bg-background-dark flex flex-col">
         <Header currentPath="/profile" />
-        <main className="pt-16">
+        <main className="pt-16 flex-1 flex items-center justify-center">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="text-center">
               <h1 className="text-3xl font-bold text-text-primary mb-4">Profile</h1>
@@ -535,10 +535,10 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background-dark">
+    <div className="min-h-screen bg-background-dark flex flex-col">
       <Header currentPath="/profile" />
       
-      <main className="pt-16">
+      <main className="pt-16 flex-1">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           {/* Back Button */}
           <button
