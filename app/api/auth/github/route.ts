@@ -21,30 +21,35 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const resolvedRedirectUri = process.env.GITHUB_REDIRECT_URI 
+      || process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI 
+      || 'https://splitz.fun/api/auth/github';
+
     console.log('GitHub OAuth callback received:', { 
       code: code ? code.substring(0, 10) + '...' : 'undefined',
       state,
-      clientId: process.env.GITHUB_CLIENT_ID,
-      redirectUri: process.env.GITHUB_REDIRECT_URI
+      clientId: process.env.GITHUB_CLIENT_ID ? 'present' : 'missing',
+      hasClientSecret: !!process.env.GITHUB_CLIENT_SECRET,
+      redirectUri: resolvedRedirectUri
     });
 
-    // Exchange code for access token
-    const tokenRequestBody = {
-      client_id: process.env.GITHUB_CLIENT_ID,
-      client_secret: process.env.GITHUB_CLIENT_SECRET,
-      code,
-      redirect_uri: process.env.GITHUB_REDIRECT_URI
-    };
+    // Exchange code for access token (use x-www-form-urlencoded per GitHub docs)
+    const tokenParams = new URLSearchParams({
+      client_id: process.env.GITHUB_CLIENT_ID || '',
+      client_secret: process.env.GITHUB_CLIENT_SECRET || '',
+      code: code!,
+      redirect_uri: resolvedRedirectUri
+    });
 
-    console.log('GitHub token request body:', JSON.stringify(tokenRequestBody, null, 2));
+    console.log('GitHub token request (form-encoded):', tokenParams.toString());
 
     const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify(tokenRequestBody)
+      body: tokenParams
     });
 
     if (!tokenResponse.ok) {
