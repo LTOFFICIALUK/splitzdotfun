@@ -164,7 +164,7 @@ const ProfilePage: React.FC = () => {
       'GitHub': `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_GITHUB_REDIRECT_URI || 'https://splitz.fun/api/auth/github')}&scope=read:user&state=${encodeURIComponent(publicKey)}&response_type=code`,
       'Twitch': `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TWITCH_REDIRECT_URI || 'https://splitz.fun/api/auth/twitch')}&scope=user:read:email&state=${publicKey}`,
       'TikTok': `https://www.tiktok.com/v2/auth/authorize?client_key=${process.env.NEXT_PUBLIC_TIKTOK_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_TIKTOK_REDIRECT_URI || 'https://splitz.fun/api/auth/tiktok')}&scope=user.info.basic&response_type=code&state=${publicKey}`,
-      // 'Kick': `https://kick.com/oauth/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_KICK_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_KICK_REDIRECT_URI || 'https://splitz.fun/api/auth/kick')}&scope=user:read%20channel:read&state=${encodeURIComponent(publicKey)}`
+      'Kick': `https://id.kick.com/oauth/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_KICK_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_KICK_REDIRECT_URI || 'https://splitz.fun/api/auth/kick')}&scope=user:read%20channel:read&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${encodeURIComponent(publicKey)}`
     };
     
     const oauthUrl = oauthUrls[platform as keyof typeof oauthUrls];
