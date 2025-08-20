@@ -1,83 +1,109 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { Token } from '@/types';
+import { useWallet } from '@/components/ui/WalletProvider';
+
+interface UserToken {
+  id: string;
+  name: string;
+  symbol: string;
+  contract_address: string;
+  image_url: string | null;
+  social_link: string | null;
+  created_at: string;
+  fees_generated: number;
+  current_owner: string;
+  royalty_earners: Array<{
+    social_or_wallet: string;
+    role: string;
+    percentage: number;
+  }>;
+  total_fees_earned: number;
+  fees_owed_per_earner: Record<string, number>;
+  fees_claimed_per_earner: Record<string, number>;
+  total_fees_claimed: number;
+  type: 'owned' | 'royalty' | 'deployed';
+}
+
+interface UserTokensData {
+  owned: UserToken[];
+  royalty: UserToken[];
+  deployed: UserToken[];
+}
 
 const ProjectsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'launched' | 'delegated'>('launched');
+  const [activeTab, setActiveTab] = useState<'owned' | 'royalty' | 'deployed'>('owned');
+  const [tokens, setTokens] = useState<UserTokensData>({ owned: [], royalty: [], deployed: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { publicKey, isConnected } = useWallet();
 
-  // Placeholder data for launched tokens
-  const launchedTokens: Token[] = [
-    {
-      id: '1',
-      name: 'MemeCoin Alpha',
-      ticker: 'MEME',
-      address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
-      logoUrl: '/placeholder-logo.png',
-      mcap: 2500000,
-      change24h: 15.5,
-      creatorRewardsSOL: 45.2,
-    },
-    {
-      id: '2',
-      name: 'DeFi Protocol Token',
-      ticker: 'DEFI',
-      address: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-      logoUrl: '/placeholder-logo.png',
-      mcap: 1800000,
-      change24h: -8.3,
-      creatorRewardsSOL: 32.1,
-    },
-    {
-      id: '3',
-      name: 'Gaming Guild Token',
-      ticker: 'GGT',
-      address: '3xJw8bG4pE1L7mK9nQ2vR5tY8uI6oP0aZ1xE4wS7dF2gH',
-      logoUrl: '/placeholder-logo.png',
-      mcap: 950000,
-      change24h: 22.7,
-      creatorRewardsSOL: 18.9,
-    },
-  ];
+  useEffect(() => {
+    const fetchUserTokens = async () => {
+      if (!isConnected || !publicKey) {
+        setLoading(false);
+        return;
+      }
 
-  // Placeholder data for delegated tokens
-  const delegatedTokens: Token[] = [
-    {
-      id: '4',
-      name: 'Community Token Beta',
-      ticker: 'CTB',
-      address: '5yL9vE3mN2pQ8rT6wX1zA4bC7dF0gH3jK6nM9oP2qR5sU',
-      logoUrl: '/placeholder-logo.png',
-      mcap: 3200000,
-      change24h: 12.1,
-      creatorRewardsSOL: 28.5,
-    },
-    {
-      id: '5',
-      name: 'NFT Marketplace Token',
-      ticker: 'NMT',
-      address: '8zK4wR7tY2uI5oP1aZ3xE6wS9dF2gH4jK7nM0oP3qR6sU',
-      logoUrl: '/placeholder-logo.png',
-      mcap: 4100000,
-      change24h: -5.2,
-      creatorRewardsSOL: 67.3,
-    },
-  ];
+      try {
+        setLoading(true);
+        setError(null);
 
-  const currentTokens = activeTab === 'launched' ? launchedTokens : delegatedTokens;
+        const response = await fetch(`/api/user-tokens?user=${publicKey}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch user tokens');
+        }
 
-  const formatMarketCap = (mcap: number) => {
-    if (mcap >= 1e9) return `$${(mcap / 1e9).toFixed(1)}B`;
-    if (mcap >= 1e6) return `$${(mcap / 1e6).toFixed(1)}M`;
-    if (mcap >= 1e3) return `$${(mcap / 1e3).toFixed(1)}K`;
-    return `$${mcap.toFixed(0)}`;
+        const result = await response.json();
+        
+        if (result.success) {
+          setTokens(result.data);
+        } else {
+          throw new Error(result.error || 'Failed to fetch tokens');
+        }
+      } catch (err) {
+        console.error('Error fetching user tokens:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch tokens');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserTokens();
+  }, [isConnected, publicKey]);
+
+  const getCurrentTokens = () => {
+    switch (activeTab) {
+      case 'owned':
+        return tokens.owned;
+      case 'royalty':
+        return tokens.royalty;
+      case 'deployed':
+        return tokens.deployed;
+      default:
+        return [];
+    }
   };
 
-  const formatChange = (change: number) => {
-    const isPositive = change >= 0;
-    return `${isPositive ? '+' : ''}${change.toFixed(1)}%`;
+  const currentTokens = getCurrentTokens();
+
+  const formatFees = (fees: number) => {
+    return `${fees.toFixed(2)} SOL`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getTokenImage = (token: UserToken) => {
+    if (token.image_url) {
+      return token.image_url;
+    }
+    // Fallback to generated logo based on symbol
+    return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="%2300ff88" rx="8"/><text x="16" y="20" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="%23000">${token.symbol.charAt(0)}</text></svg>`;
   };
 
   return (
@@ -97,75 +123,134 @@ const ProjectsPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-background-card rounded-lg p-1 mb-6">
-            <button
-              onClick={() => setActiveTab('launched')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'launched'
-                  ? 'bg-primary-mint text-background-dark'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              Launched Tokens ({launchedTokens.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('delegated')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'delegated'
-                  ? 'bg-primary-mint text-background-dark'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              Delegated Fees ({delegatedTokens.length})
-            </button>
-          </div>
+          {/* Wallet Connection Check */}
+          {!isConnected && (
+            <div className="text-center py-12 pb-8">
+              <div className="w-16 h-16 bg-background-card rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">🔗</span>
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary mb-2">
+                Connect your wallet
+              </h3>
+              <p className="text-text-secondary mb-6">
+                Connect your wallet to view your tokens and royalty earnings
+              </p>
+            </div>
+          )}
 
-          {/* Simple List */}
-          {currentTokens.length > 0 ? (
+          {/* Tab Navigation */}
+          {isConnected && (
+            <div className="flex space-x-1 bg-background-card rounded-lg p-1 mb-6">
+            <button
+              onClick={() => setActiveTab('owned')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'owned'
+                  ? 'bg-primary-mint text-background-dark'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Owned Tokens ({tokens.owned.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('royalty')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'royalty'
+                  ? 'bg-primary-mint text-background-dark'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Royalty Tokens ({tokens.royalty.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('deployed')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'deployed'
+                  ? 'bg-primary-mint text-background-dark'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Deployed Tokens ({tokens.deployed.length})
+                          </button>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isConnected && loading && (
+            <div className="text-center py-12 pb-8">
+              <div className="w-16 h-16 bg-background-card rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-mint"></div>
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary mb-2">
+                Loading your tokens...
+              </h3>
+            </div>
+          )}
+
+          {/* Error State */}
+          {isConnected && error && !loading && (
+            <div className="text-center py-12 pb-8">
+              <div className="w-16 h-16 bg-background-card rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">⚠️</span>
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary mb-2">
+                Error loading tokens
+              </h3>
+              <p className="text-text-secondary mb-6">
+                {error}
+              </p>
+            </div>
+          )}
+
+          {/* Token List */}
+          {isConnected && !loading && !error && currentTokens.length > 0 && (
             <div className="space-y-4 pb-8">
               {currentTokens.map((token) => (
                 <a
                   key={token.id}
-                  href={`/projects/${token.id}`}
+                  href={`/token/${token.contract_address}`}
                   className="block bg-background-card rounded-lg border border-background-elevated p-4 hover:border-primary-mint/30 hover:bg-background-elevated transition-all duration-200 cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     {/* Token Info */}
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
-                        <span className="text-background-dark font-bold text-sm">{token.ticker.charAt(0)}</span>
-                      </div>
+                      <img
+                        src={getTokenImage(token)}
+                        alt={token.name}
+                        className="w-8 h-8 rounded-lg object-cover"
+                      />
                       <div>
                         <h3 className="font-semibold text-text-primary">{token.name}</h3>
-                        <p className="text-text-secondary text-xs font-mono">{token.address.slice(0, 4)}...{token.address.slice(-4)}</p>
+                        <p className="text-text-secondary text-xs font-mono">{token.contract_address.slice(0, 4)}...{token.contract_address.slice(-4)}</p>
                       </div>
                     </div>
                     
-                    {/* Market Data */}
+                    {/* Token Data */}
                     <div className="text-right">
-                      <p className="font-semibold text-text-primary">{formatMarketCap(token.mcap)}</p>
-                      <p className={`text-xs font-medium ${token.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {formatChange(token.change24h)}
-                      </p>
-                      <p className="text-text-secondary text-xs">{token.creatorRewardsSOL.toFixed(1)} SOL</p>
+                      <p className="font-semibold text-text-primary">{token.symbol}</p>
+                      <p className="text-text-secondary text-xs">{formatDate(token.created_at)}</p>
+                      <p className="text-primary-mint text-xs font-medium">{formatFees(token.total_fees_earned)}</p>
                     </div>
                   </div>
                 </a>
               ))}
             </div>
-          ) : (
+          )}
+
+          {/* Empty State */}
+          {isConnected && !loading && !error && currentTokens.length === 0 && (
             <div className="text-center py-12 pb-8">
               <div className="w-16 h-16 bg-background-card rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">📊</span>
               </div>
               <h3 className="text-lg font-semibold text-text-primary mb-2">
-                No {activeTab === 'launched' ? 'launched tokens' : 'delegated fees'} yet
+                No {activeTab === 'owned' ? 'owned tokens' : activeTab === 'royalty' ? 'royalty tokens' : 'deployed tokens'} yet
               </h3>
               <p className="text-text-secondary mb-6">
-                {activeTab === 'launched' 
-                  ? 'Launch your first token to start earning royalties'
-                  : 'Get delegated fees when others route royalties to your wallet'
+                {activeTab === 'owned' 
+                  ? 'You don\'t own any tokens yet'
+                  : activeTab === 'royalty'
+                  ? 'You\'re not earning royalties from any tokens yet'
+                  : 'You haven\'t deployed any tokens yet'
                 }
               </p>
               <a
