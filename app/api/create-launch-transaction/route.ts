@@ -82,10 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Serialize the transaction for frontend signing
-    const serializedTransaction = finalTransaction.serialize({
-      requireAllSignatures: false,
-      verifySignatures: false
-    });
+    const serializedTransaction = finalTransaction.serialize();
 
     const response: CreateLaunchTransactionResponse = {
       success: true,
