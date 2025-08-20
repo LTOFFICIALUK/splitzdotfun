@@ -164,6 +164,10 @@ const ProfilePage: React.FC = () => {
     
     if (oauthUrl) {
       console.log(`Redirecting to OAuth URL for ${platform}...`);
+      // Ensure any existing query params like ?error=... are cleared before redirect
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch {}
       window.location.href = oauthUrl;
     } else {
       console.error(`OAuth not implemented for ${platform}`);
@@ -343,19 +347,13 @@ const ProfilePage: React.FC = () => {
 
       loadProfile();
 
-      // Clear URL parameters
+      // Clear URL parameters (non-blocking, avoid alerts)
       window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Show success message
-      alert(`Successfully verified ${verified} account: ${username}`);
     }
 
     if (error) {
-      // Clear URL parameters
+      // Clear URL parameters (non-blocking, avoid alerts to not block navigation)
       window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Show error message
-      alert(`OAuth verification failed: ${error}`);
     }
   }, [publicKey]);
 
