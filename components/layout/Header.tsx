@@ -59,7 +59,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
         isScrolled ? 'bg-background-dark/95 backdrop-blur-sm border-b border-background-elevated' : 'bg-background-dark'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-16 min-w-0">
             {/* Logo */}
             <div className="flex-shrink-0">
               <Link href="/" className="flex items-center" style={{ outline: 'none' }}>
@@ -79,7 +79,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
+            <nav className="hidden lg:flex items-center space-x-6 flex-shrink-0">
               {navLinks.map((link) => (
                 <NavLink
                   key={link.href}
@@ -92,23 +92,43 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             </nav>
 
             {/* Desktop Actions */}
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden lg:flex items-center space-x-3 flex-shrink-0">
               <button
                 onClick={() => setIsSearchOpen(true)}
-                className="p-2 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
                 aria-label="Search"
               >
                 <Search className="w-4 h-4" />
               </button>
               <Link
                 href="/create"
-                className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none"
+                className="h-10 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none flex items-center justify-center"
                 style={{ outline: 'none' }}
               >
-                <Plus className="w-4 h-4 inline mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Create coin
               </Link>
-              <ConnectWalletButton variant="secondary" size="md" />
+              <ConnectWalletButton variant="secondary" size="md" className="h-10" />
+            </div>
+
+            {/* Medium screen actions (tablet) */}
+            <div className="hidden md:flex lg:hidden items-center space-x-2 flex-shrink-0">
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                aria-label="Search"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+              <Link
+                href="/create"
+                className="h-10 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-3 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none flex items-center justify-center text-sm"
+                style={{ outline: 'none' }}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Create
+              </Link>
+              <ConnectWalletButton variant="secondary" size="md" className="h-10" />
             </div>
 
             {/* Mobile menu button */}

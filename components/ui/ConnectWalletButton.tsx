@@ -120,7 +120,11 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
       secondary: 'bg-background-elevated text-text-primary hover:bg-background-card',
     };
 
-    return `${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${className}`;
+    // If className contains height classes, override the size padding
+    const hasHeightClass = className.includes('h-');
+    const finalSizeClasses = hasHeightClass ? 'px-4' : sizeClasses[size];
+
+    return `${baseClasses} ${finalSizeClasses} ${variantClasses[variant]} ${className}`;
   };
 
   const formatWalletAddress = (address: string) => {
