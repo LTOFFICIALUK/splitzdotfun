@@ -306,7 +306,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       results.push({ stat: 'top_earner', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
 
-    // 14. Update Time-Period Specific Stats
+    // 14. Update Marketplace Sales Stats
+    try {
+      const { data: salesData, error: salesError } = await supabase
+        .from('marketplace_sales')
+        .select('sale_price_sol, sale_price_usd, time_to_sell_minutes')
+        .eq('transaction_status', 'confirmed');
+
+      if (salesError) throw salesError;
+
+      const totalVolumeSol = salesData?.reduce((sum, sale) => sum + (sale.sale_price_sol || 0), 0) || 0;
+      const totalVolumeUsd = salesData?.reduce((sum, sale) => sum + (sale.sale_price_usd || 0), 0) || 0;
+      const totalSales = salesData?.length || 0;
+      
+      // Calculate average sale time
+      const salesWithTime = salesData?.filter(sale => sale.time_to_sell_minutes !== null) || [];
+      const averageSaleTime = salesWithTime.length > 0 
+        ? salesWithTime.reduce((sum, sale) => sum + (sale.time_to_sell_minutes || 0), 0) / salesWithTime.length
+        : 0;
+
+      await updateStat('marketplace_total_volume_sol', totalVolumeSol, formatSOL(totalVolumeSol));
+      await updateStat('marketplace_total_volume_usd', totalVolumeUsd, formatCurrency(totalVolumeUsd));
+      await updateStat('marketplace_total_sales', totalSales, totalSales.toString());
+      await updateStat('marketplace_average_sale_time', averageSaleTime, formatTime(averageSaleTime));
+      
+      results.push({ stat: 'marketplace_stats', success: true, value: totalVolumeSol });
+      console.log(`✅ Marketplace stats updated: ${totalSales} sales, ${formatSOL(totalVolumeSol)} volume`);
+    } catch (error) {
+      console.error('❌ Error updating marketplace stats:', error);
+      results.push({ stat: 'marketplace_stats', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+
+    // 15. Update Time-Period Specific Stats
     const timePeriodsForStats = ['24h', '7d', '30d', 'all_time'];
     for (const period of timePeriodsForStats) {
       try {
@@ -389,6 +420,28 @@ function formatCurrency(amount: number): string {
     return `$${(amount / 1000).toFixed(1)}K`;
   } else {
     return `$${amount.toFixed(0)}`;
+  }
+}
+
+function formatSOL(amount: number): string {
+  if (amount >= 1000000) {
+    return `${(amount / 1000000).toFixed(1)}M SOL`;
+  } else if (amount >= 1000) {
+    return `${(amount / 1000).toFixed(1)}K SOL`;
+  } else {
+    return `${amount.toFixed(2)} SOL`;
+  }
+}
+
+function formatTime(minutes: number): string {
+  if (minutes < 60) {
+    return `${Math.round(minutes)}m`;
+  } else if (minutes < 1440) { // 24 hours
+    const hours = minutes / 60;
+    return `${hours.toFixed(1)}h`;
+  } else {
+    const days = minutes / 1440;
+    return `${days.toFixed(1)}d`;
   }
 }
 
