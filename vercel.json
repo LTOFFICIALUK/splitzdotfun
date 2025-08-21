@@ -5,11 +5,5 @@
   "installCommand": "npm install",
   "env": {
     "NEXTAUTH_URL": "https://splitz.fun"
-  },
-  "crons": [
-    {
-      "path": "/api/update-token-statistics",
-      "schedule": "*/5 * * * *"
-    }
-  ]
+  }
 }
