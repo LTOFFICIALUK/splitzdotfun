@@ -59,7 +59,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
         isScrolled ? 'bg-background-dark/95 backdrop-blur-sm border-b border-background-elevated' : 'bg-background-dark'
       }`}>
         <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 min-w-0">
+          <div className="flex items-center justify-between h-16 min-w-0 relative">
             {/* Logo */}
             <div className="flex-shrink-0">
               <Link href="/" className="flex items-center" style={{ outline: 'none' }}>
@@ -78,8 +78,8 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               </Link>
             </div>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center space-x-6 flex-shrink-0">
+            {/* Desktop Navigation - Centered on screen */}
+            <nav className="hidden lg:flex items-center space-x-6 absolute left-1/2 transform -translate-x-1/2">
               {navLinks.map((link) => (
                 <NavLink
                   key={link.href}
