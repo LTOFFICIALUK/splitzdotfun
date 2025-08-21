@@ -136,6 +136,14 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
                 Create
               </Link>
               <ConnectWalletButton variant="secondary" size="md" className="h-10" />
+              {/* Hamburger menu for medium screens */}
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                aria-label="Toggle menu"
+              >
+                {isMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
             </div>
 
             {/* Mobile menu button */}
@@ -150,9 +158,9 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             </div>
           </div>
 
-          {/* Mobile Navigation */}
+          {/* Mobile/Medium Navigation */}
           {isMenuOpen && (
-            <div className="md:hidden py-4 border-t border-background-elevated">
+            <div className="xl:hidden py-4 border-t border-background-elevated">
               <div className="space-y-4">
                 {navLinks.map((link) => (
                   <Link
