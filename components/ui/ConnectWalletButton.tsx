@@ -149,14 +149,26 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
           onClick={handleDropdownToggle}
           aria-label="Wallet menu"
         >
-          <span>{formatWalletAddress(publicKey)}</span>
+          <Wallet className="w-4 h-4" />
           <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
         </button>
         
         {/* Dropdown Menu */}
         {showDropdown && (
-          <div className="absolute top-full right-0 mt-2 w-48 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 animate-slide-up">
+          <div className="absolute top-full right-0 mt-2 w-64 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 animate-slide-up">
             <div className="py-2">
+              {/* Wallet Address - Clickable to Solscan */}
+              <button
+                onClick={() => {
+                  window.open(`https://solscan.io/account/${publicKey}`, '_blank');
+                  setShowDropdown(false);
+                }}
+                className="w-full px-4 py-3 text-left text-text-primary hover:bg-background-elevated transition-colors border-b border-background-elevated"
+              >
+                <div className="text-xs text-text-secondary mb-1">Wallet Address</div>
+                <div className="font-mono text-sm break-all">{publicKey}</div>
+              </button>
+              
               <button
                 onClick={handleViewProjects}
                 className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3 whitespace-nowrap"
@@ -238,7 +250,6 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
         aria-label="Connect Phantom wallet"
       >
         <Wallet className="w-4 h-4" />
-        <span>Connect Wallet</span>
       </button>
       
       {/* Error Popup with fade animation */}
