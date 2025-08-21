@@ -35,22 +35,34 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
     }
   };
 
-  // Fetch leaderboard data
+  // Fetch leaderboard data from cache
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
         setIsLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/royalty-leaderboard?period=${timePeriod}&limit=50`);
-        const data = await response.json();
+        // Try to fetch from cache first
+        const cacheResponse = await fetch(`/api/stats-cache?key=leaderboard_${timePeriod}`);
+        const cacheData = await cacheResponse.json();
         
-        if (data.success) {
-          setEntries(data.data);
+        if (cacheData.success && cacheData.data[`leaderboard_${timePeriod}`]?.value_json) {
+          // Parse cached leaderboard data
+          const cachedEntries = JSON.parse(cacheData.data[`leaderboard_${timePeriod}`].value_json);
+          setEntries(cachedEntries);
         } else {
-          console.error('Failed to fetch leaderboard:', data.error);
-          setError(data.error || 'Failed to fetch leaderboard');
-          setEntries([]);
+          // Fallback to direct API call
+          console.log('Cache miss, fetching from direct API...');
+          const response = await fetch(`/api/royalty-leaderboard?period=${timePeriod}&limit=50`);
+          const data = await response.json();
+          
+          if (data.success) {
+            setEntries(data.data);
+          } else {
+            console.error('Failed to fetch leaderboard:', data.error);
+            setError(data.error || 'Failed to fetch leaderboard');
+            setEntries([]);
+          }
         }
       } catch (error) {
         console.error('Error fetching leaderboard:', error);

@@ -184,6 +184,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       results.push({ stat: 'platform_fees_collected', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
 
+    // 9. Update Leaderboards
+    const timePeriods = ['24h', '7d', '30d', 'all_time'];
+    for (const period of timePeriods) {
+      try {
+        console.log(`📊 Calculating leaderboard for ${period}...`);
+        const leaderboardData = await calculateLeaderboardForPeriod(period);
+        
+        await updateStatWithJSON(`leaderboard_${period}`, leaderboardData.length, JSON.stringify(leaderboardData));
+        results.push({ stat: `leaderboard_${period}`, success: true, count: leaderboardData.length });
+        console.log(`✅ ${period} leaderboard updated with ${leaderboardData.length} entries`);
+      } catch (error) {
+        console.error(`❌ Error calculating ${period} leaderboard:`, error);
+        results.push({ stat: `leaderboard_${period}`, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    }
+
     console.log('✅ Stats cache updated successfully');
 
     return NextResponse.json({
@@ -225,6 +241,25 @@ async function updateStat(statKey: string, numericValue: number, textValue: stri
   }
 }
 
+async function updateStatWithJSON(statKey: string, numericValue: number, jsonValue: string) {
+  const nextUpdate = new Date();
+  nextUpdate.setMinutes(nextUpdate.getMinutes() + 5); // Update every 5 minutes
+
+  const { error } = await supabase
+    .from('stats_cache')
+    .upsert({
+      stat_key: statKey,
+      value_numeric: numericValue,
+      value_json: jsonValue,
+      last_calculated: new Date().toISOString(),
+      next_update: nextUpdate.toISOString()
+    });
+
+  if (error) {
+    throw new Error(`Failed to update stat ${statKey}: ${error.message}`);
+  }
+}
+
 function formatCurrency(amount: number): string {
   if (amount >= 1000000) {
     return `$${(amount / 1000000).toFixed(1)}M`;
@@ -243,4 +278,167 @@ function formatNumber(num: number): string {
   } else {
     return num.toLocaleString();
   }
+}
+
+async function calculateLeaderboardForPeriod(timePeriod: string) {
+  // Calculate date range based on time period
+  const now = new Date();
+  let startDate: Date | null = null;
+  
+  switch (timePeriod) {
+    case '24h':
+      startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      break;
+    case '7d':
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case '30d':
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    case 'all_time':
+      startDate = null; // No start date for all time
+      break;
+    default:
+      throw new Error(`Invalid time period: ${timePeriod}`);
+  }
+
+  // Build query for royalty payouts
+  let query = supabase
+    .from('royalty_payouts')
+    .select(`
+      royalty_earner_social_or_wallet,
+      royalty_role,
+      payout_amount,
+      payout_amount_usd,
+      claimed_at,
+      token_id,
+      token:tokens(name, symbol)
+    `)
+    .eq('transaction_status', 'confirmed')
+    .not('payout_amount_usd', 'is', null);
+
+  // Add date filter if not all_time
+  if (startDate) {
+    query = query.gte('claimed_at', startDate.toISOString());
+  }
+
+  const { data: payouts, error } = await query;
+
+  if (error) {
+    throw new Error(`Database error: ${error.message}`);
+  }
+
+  if (!payouts || payouts.length === 0) {
+    return [];
+  }
+
+  // Group payouts by royalty earner
+  const earnerStats = new Map<string, {
+    social_or_wallet: string;
+    roles: Set<string>;
+    totalSol: number;
+    totalUsd: number;
+    payoutCount: number;
+    tokens: Set<string>;
+    tokenEarnings: Map<string, number>;
+    payouts: Array<{
+      amount: number;
+      claimed_at: string;
+      token_id: string;
+      token_name: string;
+      token_symbol: string;
+    }>;
+  }>();
+
+  // Process each payout
+  for (const payout of payouts) {
+    const earner = payout.royalty_earner_social_or_wallet;
+    const amount = payout.payout_amount_usd || 0;
+    const solAmount = payout.payout_amount || 0;
+
+    if (!earnerStats.has(earner)) {
+      earnerStats.set(earner, {
+        social_or_wallet: earner,
+        roles: new Set(),
+        totalSol: 0,
+        totalUsd: 0,
+        payoutCount: 0,
+        tokens: new Set(),
+        tokenEarnings: new Map(),
+        payouts: []
+      });
+    }
+
+    const stats = earnerStats.get(earner)!;
+    stats.roles.add(payout.royalty_role);
+    stats.totalSol += solAmount;
+    stats.totalUsd += amount;
+    stats.payoutCount++;
+    stats.tokens.add(payout.token_id);
+    
+    // Track earnings per token
+    const currentTokenEarnings = stats.tokenEarnings.get(payout.token_id) || 0;
+    stats.tokenEarnings.set(payout.token_id, currentTokenEarnings + amount);
+    
+    // Track payout details
+    stats.payouts.push({
+      amount,
+      claimed_at: payout.claimed_at,
+      token_id: payout.token_id,
+      token_name: payout.token?.name || 'Unknown',
+      token_symbol: payout.token?.symbol || 'Unknown'
+    });
+  }
+
+  // Convert to array and sort by total USD earnings
+  const sortedEarners = Array.from(earnerStats.values())
+    .sort((a, b) => b.totalUsd - a.totalUsd);
+
+  // Prepare leaderboard entries (limit to top 50)
+  const leaderboardEntries = sortedEarners.slice(0, 50).map((earner, index) => {
+    const rank = index + 1;
+    
+    // Find top token (highest earnings)
+    let topTokenId = null;
+    let topTokenName = null;
+    let topTokenSymbol = null;
+    let maxTokenEarnings = 0;
+    
+    for (const [tokenId, earnings] of earner.tokenEarnings) {
+      if (earnings > maxTokenEarnings) {
+        maxTokenEarnings = earnings;
+        const topPayout = earner.payouts.find(p => p.token_id === tokenId);
+        topTokenId = tokenId;
+        topTokenName = topPayout?.token_name || null;
+        topTokenSymbol = topPayout?.token_symbol || null;
+      }
+    }
+
+    // Calculate additional metrics
+    const averagePayout = earner.totalUsd / earner.payoutCount;
+    const largestPayout = Math.max(...earner.payouts.map(p => p.amount));
+    const mostRecentPayout = earner.payouts
+      .sort((a, b) => new Date(b.claimed_at).getTime() - new Date(a.claimed_at).getTime())[0];
+
+    return {
+      time_period: timePeriod,
+      rank_position: rank,
+      royalty_earner_social_or_wallet: earner.social_or_wallet,
+      royalty_role: Array.from(earner.roles)[0] || null,
+      total_earnings_sol: earner.totalSol,
+      total_earnings_usd: earner.totalUsd,
+      payout_count: earner.payoutCount,
+      tokens_earned_from: earner.tokens.size,
+      top_token_id: topTokenId,
+      top_token_name: topTokenName,
+      top_token_symbol: topTokenSymbol,
+      period_start: startDate?.toISOString() || null,
+      period_end: now.toISOString(),
+      average_payout_usd: averagePayout,
+      largest_single_payout_usd: largestPayout,
+      most_recent_payout_at: mostRecentPayout?.claimed_at || null
+    };
+  });
+
+  return leaderboardEntries;
 }

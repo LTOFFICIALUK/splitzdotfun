@@ -40,7 +40,11 @@ INSERT INTO stats_cache (stat_key, stat_name, value_numeric, value_text, descrip
 ('average_earnings_per_earner', 'Average Earnings per Earner', 0, '$0', 'Average USD earnings per royalty earner', 5),
 ('top_earner_this_week', 'Top Earner This Week', 0, 'None', 'Highest earning royalty earner in the last 7 days', 5),
 ('total_payouts_this_week', 'Total Payouts This Week', 0, '0', 'Number of royalty payouts in the last 7 days', 5),
-('platform_fees_collected', 'Platform Fees Collected', 0, '$0', 'Total platform fees collected from royalty payouts', 5)
+('platform_fees_collected', 'Platform Fees Collected', 0, '$0', 'Total platform fees collected from royalty payouts', 5),
+('leaderboard_24h', 'Leaderboard 24 Hours', 0, '[]', 'Top 50 royalty earners for the last 24 hours', 5),
+('leaderboard_7d', 'Leaderboard 7 Days', 0, '[]', 'Top 50 royalty earners for the last 7 days', 5),
+('leaderboard_30d', 'Leaderboard 30 Days', 0, '[]', 'Top 50 royalty earners for the last 30 days', 5),
+('leaderboard_all_time', 'Leaderboard All Time', 0, '[]', 'Top 50 royalty earners of all time', 5)
 ON CONFLICT (stat_key) DO NOTHING;
 
 -- Add comments for documentation
