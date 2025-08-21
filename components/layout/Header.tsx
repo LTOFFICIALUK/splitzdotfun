@@ -74,7 +74,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
                 <img 
                   src="/circle-logo.png" 
                   alt="SplitzFun" 
-                  className="w-8 h-8 md:hidden"
+                  className="w-10 h-10 md:hidden"
                 />
                 {/* Desktop: Long logo */}
                 <img 
@@ -193,18 +193,6 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
                     {link.label}
                   </Link>
                 ))}
-                
-                {/* Wallet Address Display */}
-                {isConnected && publicKey && (
-                  <div className="pt-2 pb-2">
-                    <div className="text-xs text-text-secondary font-medium">
-                      Connected Wallet
-                    </div>
-                    <div className="text-sm text-text-primary font-mono">
-                      {formatWalletAddress(publicKey)}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
