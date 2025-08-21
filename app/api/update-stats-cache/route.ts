@@ -288,8 +288,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // 14. Update Time-Period Specific Stats
-    const timePeriods = ['24h', '7d', '30d', 'all_time'];
-    for (const period of timePeriods) {
+    const timePeriodsForStats = ['24h', '7d', '30d', 'all_time'];
+    for (const period of timePeriodsForStats) {
       try {
         console.log(`📊 Calculating time-period stats for ${period}...`);
         const periodStats = await calculateTimePeriodStats(period);
