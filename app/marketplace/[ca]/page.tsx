@@ -427,7 +427,6 @@ export default function MarketplaceListingDetailPage() {
                       )}
                     </div>
                     <div>
-                      {console.log('Rendering seller info with profiles:', listing.profiles)}
                       <p 
                         className="text-text-primary font-semibold cursor-pointer hover:text-primary-mint transition-colors"
                         onClick={() => {
