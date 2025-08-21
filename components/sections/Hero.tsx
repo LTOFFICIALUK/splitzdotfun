@@ -19,6 +19,8 @@ const Hero: React.FC<HeroProps> = ({
   const [isLoadingRoyalties, setIsLoadingRoyalties] = useState<boolean>(true);
   const [tokenCount, setTokenCount] = useState<number>(0);
   const [isLoadingTokens, setIsLoadingTokens] = useState<boolean>(true);
+  const [totalHolders, setTotalHolders] = useState<number>(0);
+  const [isLoadingHolders, setIsLoadingHolders] = useState<boolean>(true);
 
   // Helper function to format currency
   const formatCurrency = (amount: number): string => {
@@ -28,6 +30,17 @@ const Hero: React.FC<HeroProps> = ({
       return `$${(amount / 1000).toFixed(1)}K`;
     } else {
       return `$${amount.toFixed(0)}`;
+    }
+  };
+
+  // Helper function to format numbers (for holders, tokens, etc.)
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}K`;
+    } else {
+      return num.toLocaleString();
     }
   };
 
@@ -77,6 +90,30 @@ const Hero: React.FC<HeroProps> = ({
     };
 
     fetchTokenCount();
+  }, []);
+
+  // Fetch total holders data
+  useEffect(() => {
+    const fetchTotalHolders = async () => {
+      try {
+        const response = await fetch('/api/total-holders');
+        const data = await response.json();
+        
+        if (data.success) {
+          setTotalHolders(data.total_holders);
+        } else {
+          console.error('Failed to fetch total holders:', data.error);
+          setTotalHolders(0);
+        }
+      } catch (error) {
+        console.error('Error fetching total holders:', error);
+        setTotalHolders(0);
+      } finally {
+        setIsLoadingHolders(false);
+      }
+    };
+
+    fetchTotalHolders();
   }, []);
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -170,7 +207,13 @@ const Hero: React.FC<HeroProps> = ({
             <div className="text-text-secondary">Tokens Launched</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-primary-mint mb-2">89.2K</div>
+            <div className="text-3xl font-bold text-primary-mint mb-2">
+              {isLoadingHolders ? (
+                <Loader2 className="w-8 h-8 animate-spin mx-auto" />
+              ) : (
+                formatNumber(totalHolders)
+              )}
+            </div>
             <div className="text-text-secondary">Active Holders</div>
           </div>
         </div>
