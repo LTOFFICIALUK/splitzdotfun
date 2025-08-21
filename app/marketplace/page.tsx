@@ -60,6 +60,11 @@ export default function MarketplacePage() {
   const [auctions, setAuctions] = useState<MarketplaceAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [marketplaceStats, setMarketplaceStats] = useState({
+    totalVolumeSol: 0,
+    totalSales: 0,
+    averageSaleTime: 0
+  });
 
   useEffect(() => {
     const fetchMarketplaceData = async () => {
@@ -67,13 +72,22 @@ export default function MarketplacePage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/marketplace/listings?activeOnly=true');
+        // Fetch listings and marketplace stats in parallel
+        const [listingsResponse, statsResponse] = await Promise.all([
+          fetch('/api/marketplace/listings?activeOnly=true'),
+          fetch('/api/marketplace-sales?include_stats=true')
+        ]);
         
-        if (!response.ok) {
-          throw new Error('Failed to fetch marketplace data');
+        if (!listingsResponse.ok) {
+          throw new Error('Failed to fetch marketplace listings');
         }
 
-        const result = await response.json();
+        if (!statsResponse.ok) {
+          throw new Error('Failed to fetch marketplace stats');
+        }
+
+        const result = await listingsResponse.json();
+        const statsResult = await statsResponse.json();
         
         if (result.success) {
           // Transform database listings to marketplace format
@@ -94,6 +108,15 @@ export default function MarketplacePage() {
           setListings(transformedListings);
           // No auctions for now, only listings - provide empty array with proper type
           setAuctions([]);
+          
+          // Set marketplace stats if available
+          if (statsResult.success && statsResult.stats) {
+            setMarketplaceStats({
+              totalVolumeSol: statsResult.stats.total_volume_sol || 0,
+              totalSales: statsResult.stats.total_sales || 0,
+              averageSaleTime: statsResult.stats.average_time_to_sell_minutes || 0
+            });
+          }
         } else {
           throw new Error(result.error || 'Failed to fetch marketplace data');
         }
@@ -107,6 +130,31 @@ export default function MarketplacePage() {
 
     fetchMarketplaceData();
   }, []);
+
+  // Helper function to format SOL amounts
+  const formatSOL = (amount: number): string => {
+    if (amount >= 1000000) {
+      return `${(amount / 1000000).toFixed(1)}M SOL`;
+    } else if (amount >= 1000) {
+      return `${(amount / 1000).toFixed(1)}K SOL`;
+    } else {
+      return `${amount.toFixed(2)} SOL`;
+    }
+  };
+
+  // Helper function to format time
+  const formatTime = (minutes: number): string => {
+    if (minutes === 0) return 'N/A';
+    if (minutes < 60) {
+      return `${Math.round(minutes)}m`;
+    } else if (minutes < 1440) { // 24 hours
+      const hours = minutes / 60;
+      return `${hours.toFixed(1)}h`;
+    } else {
+      const days = minutes / 1440;
+      return `${days.toFixed(1)}d`;
+    }
+  };
 
   // Calculate stats from real data
   const stats = [
@@ -127,14 +175,14 @@ export default function MarketplacePage() {
     {
       icon: <TrendingUp className="w-6 h-6" />,
       label: 'Total Volume',
-      value: `${listings.reduce((sum, listing) => sum + listing.price, 0).toFixed(1)} SOL`,
+      value: formatSOL(marketplaceStats.totalVolumeSol),
       change: '+0%',
       changeType: 'positive' as const,
     },
     {
       icon: <Clock className="w-6 h-6" />,
       label: 'Avg. Sale Time',
-      value: 'N/A',
+      value: formatTime(marketplaceStats.averageSaleTime),
       change: '0%',
       changeType: 'positive' as const,
     },
