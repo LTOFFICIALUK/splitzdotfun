@@ -9,6 +9,23 @@ const TrendingTokens: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper function to format numbers
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}k`;
+    } else {
+      return num.toFixed(1);
+    }
+  };
+
+  // Helper function to truncate contract address
+  const truncateAddress = (address: string): string => {
+    if (address.length <= 12) return address;
+    return `${address.slice(0, 6)}...${address.slice(-6)}`;
+  };
+
   useEffect(() => {
     const fetchTrendingTokens = async () => {
       try {
@@ -86,61 +103,61 @@ const TrendingTokens: React.FC = () => {
               <span className="text-text-secondary">No trending tokens available</span>
             </div>
           ) : (
-            <div className="flex space-x-6 overflow-x-auto pb-4 scrollbar-hide">
+                        <div className="flex flex-wrap gap-4 justify-center lg:justify-start">
               {trendingTokens.map((token) => (
-              <div key={token.id} className="flex-shrink-0 w-80">
-                <div className="bg-background-card rounded-2xl border border-background-elevated p-6 hover:border-primary-mint/30 transition-all duration-200">
-                  {/* Token Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
-                        <span className="text-background-dark font-bold text-sm">{token.ticker.charAt(0)}</span>
+                <div key={token.id} className="flex-shrink-0 w-full sm:w-80 max-w-sm">
+                  <div className="bg-background-card rounded-2xl border border-background-elevated p-4 sm:p-6 hover:border-primary-mint/30 transition-all duration-200 h-full">
+                    {/* Token Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center flex-shrink-0">
+                          <span className="text-background-dark font-bold text-sm">{token.ticker.charAt(0)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-text-primary truncate">{token.name}</h3>
+                          <p className="text-text-secondary text-sm font-mono">{truncateAddress(token.address)}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-text-primary">{token.name}</h3>
-                        <p className="text-text-secondary text-sm font-mono">{token.address}</p>
+                      
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-semibold text-text-primary">
+                          ${formatNumber(token.mcap)}
+                        </p>
+                        <p className={`text-sm font-medium ${token.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {token.change24h >= 0 ? '+' : ''}{token.change24h.toFixed(1)}%
+                        </p>
                       </div>
                     </div>
                     
-                    <div className="text-right">
-                      <p className="font-semibold text-text-primary">
-                        ${(token.mcap / 1000000).toFixed(1)}M
-                      </p>
-                      <p className={`text-sm font-medium ${token.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {token.change24h >= 0 ? '+' : ''}{token.change24h.toFixed(1)}%
-                      </p>
+                    {/* Market Cap Bar */}
+                    <div className="mb-4">
+                      <div className="flex justify-between text-xs text-text-secondary mb-1">
+                        <span>Market Cap</span>
+                        <span>${formatNumber(token.mcap)}</span>
+                      </div>
+                      <div className="w-full bg-background-elevated rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-primary-mint to-primary-aqua h-2 rounded-full transition-all duration-300"
+                          style={{ 
+                            width: `${Math.min((token.mcap / 15000000) * 100, 100)}%` 
+                          }}
+                        ></div>
+                      </div>
                     </div>
+                    
+                    {/* Boost Button */}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleBoost(token.id)}
+                      className="w-full flex items-center justify-center"
+                    >
+                      <Zap className="w-4 h-4 mr-2" />
+                      Boost
+                    </Button>
                   </div>
-                  
-                  {/* Market Cap Bar */}
-                  <div className="mb-4">
-                    <div className="flex justify-between text-xs text-text-secondary mb-1">
-                      <span>Market Cap</span>
-                      <span>${(token.mcap / 1000000).toFixed(1)}M</span>
-                    </div>
-                    <div className="w-full bg-background-elevated rounded-full h-2">
-                      <div 
-                        className="bg-gradient-to-r from-primary-mint to-primary-aqua h-2 rounded-full transition-all duration-300"
-                        style={{ 
-                          width: `${Math.min((token.mcap / 15000000) * 100, 100)}%` 
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                  
-                  {/* Boost Button */}
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleBoost(token.id)}
-                    className="w-full flex items-center justify-center"
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    Boost
-                  </Button>
                 </div>
-              </div>
-            ))}
+              ))}
             </div>
           )}
           
