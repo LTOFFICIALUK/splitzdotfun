@@ -188,7 +188,10 @@ async function calculateLeaderboardForPeriod(timePeriod: string) {
     let topTokenSymbol = null;
     let maxTokenEarnings = 0;
     
-    for (const [tokenId, earnings] of earner.tokenEarnings.entries()) {
+    // Use Array.from to avoid TypeScript iteration issues
+    const tokenEarningsArray = Array.from(earner.tokenEarnings.entries());
+    for (let i = 0; i < tokenEarningsArray.length; i++) {
+      const [tokenId, earnings] = tokenEarningsArray[i];
       if (earnings > maxTokenEarnings) {
         maxTokenEarnings = earnings;
         const topPayout = earner.payouts.find(p => p.token_id === tokenId);
