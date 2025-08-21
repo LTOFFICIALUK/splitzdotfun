@@ -10,34 +10,40 @@ import { Trophy, TrendingUp, Users, DollarSign, Share2, Lightbulb, Users2 } from
 
 export default function LeaderboardPage() {
   const [timePeriod, setTimePeriod] = useState<'24h' | '7d' | '30d' | 'all_time'>('all_time');
-  const [stats, setStats] = useState([
+  const [stats, setStats] = useState<Array<{
+    icon: React.JSX.Element;
+    label: string;
+    value: string;
+    change: string;
+    changeType: 'positive' | 'neutral';
+  }>>([
     {
       icon: <Trophy className="w-6 h-6" />,
       label: 'Total Royalties Earned',
       value: '$0',
       change: 'Loading...',
-      changeType: 'neutral' as const,
+      changeType: 'neutral',
     },
     {
       icon: <Trophy className="w-6 h-6" />,
       label: 'Total Royalties Distributed',
       value: '$0',
       change: 'Loading...',
-      changeType: 'neutral' as const,
+      changeType: 'neutral',
     },
     {
       icon: <Users className="w-6 h-6" />,
       label: 'Total Earners',
       value: '0',
       change: 'Loading...',
-      changeType: 'neutral' as const,
+      changeType: 'neutral',
     },
     {
       icon: <DollarSign className="w-6 h-6" />,
       label: 'Top Earner',
       value: 'None',
       change: 'Loading...',
-      changeType: 'neutral' as const,
+      changeType: 'neutral',
     },
   ]);
 

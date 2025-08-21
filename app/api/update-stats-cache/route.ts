@@ -484,12 +484,14 @@ async function calculateLeaderboardForPeriod(timePeriod: string) {
     stats.tokenEarnings.set(payout.token_id, currentTokenEarnings + amount);
     
     // Track payout details
+    // Handle token data - it might be an array from the join
+    const tokenData = Array.isArray(payout.token) ? payout.token[0] : payout.token;
     stats.payouts.push({
       amount,
       claimed_at: payout.claimed_at,
       token_id: payout.token_id,
-      token_name: payout.token?.name || 'Unknown',
-      token_symbol: payout.token?.symbol || 'Unknown'
+      token_name: tokenData?.name || 'Unknown',
+      token_symbol: tokenData?.symbol || 'Unknown'
     });
   }
 
@@ -507,7 +509,10 @@ async function calculateLeaderboardForPeriod(timePeriod: string) {
     let topTokenSymbol = null;
     let maxTokenEarnings = 0;
     
-    for (const [tokenId, earnings] of earner.tokenEarnings) {
+    // Use Array.from to avoid TypeScript iteration issues
+    const tokenEarningsArray = Array.from(earner.tokenEarnings.entries());
+    for (let i = 0; i < tokenEarningsArray.length; i++) {
+      const [tokenId, earnings] = tokenEarningsArray[i];
       if (earnings > maxTokenEarnings) {
         maxTokenEarnings = earnings;
         const topPayout = earner.payouts.find(p => p.token_id === tokenId);
