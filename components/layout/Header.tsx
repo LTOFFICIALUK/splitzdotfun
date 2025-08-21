@@ -148,6 +148,13 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
 
             {/* Mobile actions */}
             <div className="md:hidden flex items-center space-x-2">
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="h-10 w-10 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5" />
+              </button>
               <Link
                 href="/create"
                 className="h-10 w-10 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none flex items-center justify-center"
