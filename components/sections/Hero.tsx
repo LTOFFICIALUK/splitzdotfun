@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '../ui/Button';
-import { ArrowRight, Play } from 'lucide-react';
+import { ArrowRight, Play, Loader2 } from 'lucide-react';
 
 interface HeroProps {
   headline: string;
@@ -15,6 +15,43 @@ const Hero: React.FC<HeroProps> = ({
   onPrimaryCTA,
   onSecondaryCTA,
 }) => {
+  const [royaltiesDistributed, setRoyaltiesDistributed] = useState<number>(0);
+  const [isLoadingRoyalties, setIsLoadingRoyalties] = useState<boolean>(true);
+
+  // Helper function to format currency
+  const formatCurrency = (amount: number): string => {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(1)}K`;
+    } else {
+      return `$${amount.toFixed(0)}`;
+    }
+  };
+
+  // Fetch royalties distributed data
+  useEffect(() => {
+    const fetchRoyaltiesDistributed = async () => {
+      try {
+        const response = await fetch('/api/royalties-distributed');
+        const data = await response.json();
+        
+        if (data.success) {
+          setRoyaltiesDistributed(data.total_distributed_usd);
+        } else {
+          console.error('Failed to fetch royalties distributed:', data.error);
+          setRoyaltiesDistributed(0);
+        }
+      } catch (error) {
+        console.error('Error fetching royalties distributed:', error);
+        setRoyaltiesDistributed(0);
+      } finally {
+        setIsLoadingRoyalties(false);
+      }
+    };
+
+    fetchRoyaltiesDistributed();
+  }, []);
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Pattern */}
@@ -87,7 +124,13 @@ const Hero: React.FC<HeroProps> = ({
         {/* Stats */}
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="text-center">
-            <div className="text-3xl font-bold text-primary-mint mb-2">$2.4M</div>
+            <div className="text-3xl font-bold text-primary-mint mb-2">
+              {isLoadingRoyalties ? (
+                <Loader2 className="w-8 h-8 animate-spin mx-auto" />
+              ) : (
+                formatCurrency(royaltiesDistributed)
+              )}
+            </div>
             <div className="text-text-secondary">Total Royalties Distributed</div>
           </div>
           <div className="text-center">
