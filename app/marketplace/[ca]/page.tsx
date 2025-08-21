@@ -350,9 +350,9 @@ export default function MarketplaceListingDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-dark">
+      <div className="min-h-screen bg-background-dark flex flex-col">
         <Header currentPath="/marketplace" />
-        <main className="pt-16">
+        <main className="pt-16 flex-1">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-mint mx-auto mb-4"></div>
@@ -367,9 +367,9 @@ export default function MarketplaceListingDetailPage() {
 
   if (error || !listing) {
     return (
-      <div className="min-h-screen bg-background-dark">
+      <div className="min-h-screen bg-background-dark flex flex-col">
         <Header currentPath="/marketplace" />
-        <main className="pt-16">
+        <main className="pt-16 flex-1">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="text-center">
               <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -392,10 +392,10 @@ export default function MarketplaceListingDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background-dark">
+    <div className="min-h-screen bg-background-dark flex flex-col">
       <Header currentPath="/marketplace" />
       
-      <main className="pt-16">
+      <main className="pt-16 flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Back Button */}
           <Link href="/marketplace" className="inline-flex items-center text-text-secondary hover:text-text-primary mb-6 transition-colors">
