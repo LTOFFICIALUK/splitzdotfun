@@ -409,19 +409,21 @@ export default function MarketplaceListingDetailPage() {
             <div className="xl:col-span-3">
               {/* Token Header */}
               <div className="bg-background-card rounded-2xl border border-background-elevated p-6 mb-6">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6">
+                  <div className="flex items-center space-x-4 min-w-0 flex-1">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center flex-shrink-0">
                       <span className="text-background-dark font-bold text-2xl">{listing.tokenTicker.charAt(0)}</span>
                     </div>
-                    <div>
-                      <h1 className="text-3xl font-bold text-text-primary">{listing.tokenName}</h1>
-                      <p className="text-text-secondary font-mono text-sm">{listing.tokenTicker}</p>
-                      <p className="text-text-secondary font-mono text-xs">{listing.tokenAddress}</p>
+                    <div className="min-w-0 flex-1">
+                      <h1 className="text-3xl font-bold text-text-primary truncate">{listing.tokenName}</h1>
+                      <p className="text-text-secondary font-mono text-sm truncate">{listing.tokenTicker}</p>
+                      <p className="text-text-secondary font-mono text-xs truncate">
+                        {listing.tokenAddress.slice(0, 8)}...{listing.tokenAddress.slice(-8)}
+                      </p>
                     </div>
                   </div>
                   
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <div className="text-3xl font-bold text-primary-mint">
                       {listing.price} {listing.currency}
                     </div>
@@ -438,8 +440,8 @@ export default function MarketplaceListingDetailPage() {
                   {listing.description}
                 </p>
                 
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-background-elevated">
-                  <div className="flex items-center space-x-4 text-sm text-text-secondary">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 pt-4 border-t border-background-elevated">
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
                     <div className="flex items-center space-x-2">
                       <Calendar className="w-4 h-4" />
                       <span>Listed {formatDate(listing.createdAt)}</span>
