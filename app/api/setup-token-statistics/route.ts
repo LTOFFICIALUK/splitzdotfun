@@ -124,18 +124,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log('✅ token_statistics table created successfully');
 
     // Verify the table exists
-    const { data: tableCheck, error: checkError } = await supabase
+    const { data: tableCheck, error: verifyError } = await supabase
       .from('token_statistics')
       .select('id')
       .limit(1);
 
-    if (checkError) {
-      console.error('❌ Error checking table:', checkError);
+    if (verifyError) {
+      console.error('❌ Error checking table:', verifyError);
       return NextResponse.json(
         { 
           success: false, 
           error: 'Table created but verification failed',
-          details: checkError 
+          details: verifyError 
         },
         { status: 500 }
       );
