@@ -139,7 +139,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               {/* Hamburger menu for medium screens */}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="h-10 w-10 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                className="h-10 w-10 rounded-lg bg-background-elevated text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
                 aria-label="Toggle menu"
               >
                 {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -150,7 +150,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             <div className="md:hidden flex items-center space-x-2">
               <button
                 onClick={() => setIsSearchOpen(true)}
-                className="h-10 w-10 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                className="h-10 w-10 rounded-lg bg-background-elevated text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
                 aria-label="Search"
               >
                 <Search className="w-5 h-5" />
@@ -166,7 +166,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               <ConnectWalletButton variant="secondary" size="md" className="h-10" />
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="h-10 w-10 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                className="h-10 w-10 rounded-lg bg-background-elevated text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
                 aria-label="Toggle menu"
               >
                 {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
