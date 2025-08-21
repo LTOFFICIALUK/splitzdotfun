@@ -1,234 +1,289 @@
 'use client';
 
-import React, { useState } from 'react';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
-import LeaderboardTable from '@/components/ui/LeaderboardTable';
-import StatCard from '@/components/ui/StatCard';
-import { LeaderboardEntry } from '@/types';
-import { Trophy, TrendingUp, Users, DollarSign, Share2, Lightbulb, Users2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Calendar, TrendingUp, Users, DollarSign, ArrowRight, Loader2 } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import { RoyaltyLeaderboardEntry, RoyaltyLeaderboardResponse } from '@/types/royalty-leaderboard';
 
-export default function LeaderboardPage() {
-  const [timePeriod, setTimePeriod] = useState('week');
+const LeaderboardPage: React.FC = () => {
+  const [leaderboardData, setLeaderboardData] = useState<RoyaltyLeaderboardEntry[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<'24h' | '7d' | '30d' | 'all_time'>('7d');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<{
+    totalEarners: number;
+    totalEarnings: number;
+    averageEarnings: number;
+  }>({ totalEarners: 0, totalEarnings: 0, averageEarnings: 0 });
 
-  // Mock leaderboard data
-  const leaderboardData: LeaderboardEntry[] = [
-    {
-      handle: '@memelord',
-      avatarUrl: '/images/avatar-meme.png',
-      earnedSOL: 3.42,
-      tokenTicker: 'FROGZ',
-    },
-    {
-      handle: '@cryptoking',
-      avatarUrl: '/images/avatar-crypto.png',
-      earnedSOL: 2.89,
-      tokenTicker: 'PEPE',
-    },
-    {
-      handle: '@solanaqueen',
-      avatarUrl: '/images/avatar-solana.png',
-      earnedSOL: 2.15,
-      tokenTicker: 'BONK',
-    },
-    {
-      handle: '@degenmaster',
-      avatarUrl: '/images/avatar-degen.png',
-      earnedSOL: 1.98,
-      tokenTicker: 'DOGE',
-    },
-    {
-      handle: '@nftwhale',
-      avatarUrl: '/images/avatar-whale.png',
-      earnedSOL: 1.76,
-      tokenTicker: 'SHIB',
-    },
-    {
-      handle: '@tokenlord',
-      avatarUrl: '/images/avatar-token.png',
-      earnedSOL: 1.54,
-      tokenTicker: 'VIBE',
-    },
-    {
-      handle: '@moonboy',
-      avatarUrl: '/images/avatar-moon.png',
-      earnedSOL: 1.32,
-      tokenTicker: 'MOON',
-    },
-    {
-      handle: '@rocketman',
-      avatarUrl: '/images/avatar-rocket.png',
-      earnedSOL: 1.21,
-      tokenTicker: 'ROCKET',
-    },
-    {
-      handle: '@diamondhands',
-      avatarUrl: '/images/avatar-diamond.png',
-      earnedSOL: 1.08,
-      tokenTicker: 'DIAMOND',
-    },
-    {
-      handle: '@hodler',
-      avatarUrl: '/images/avatar-hodl.png',
-      earnedSOL: 0.95,
-      tokenTicker: 'HODL',
-    },
+  const timePeriods = [
+    { value: '24h', label: 'Past 24h', icon: Calendar },
+    { value: '7d', label: 'Past 7 days', icon: TrendingUp },
+    { value: '30d', label: 'Past 30 days', icon: Users },
+    { value: 'all_time', label: 'All time', icon: Trophy },
   ];
 
-  const stats = [
-    {
-      icon: <Trophy className="w-6 h-6" />,
-      label: 'Total Royalties Distributed',
-      value: '$2.4M',
-      change: '+12.5%',
-      changeType: 'positive' as const,
-    },
-    {
-      icon: <Users className="w-6 h-6" />,
-      label: 'Active Creators',
-      value: '1,247',
-      change: '+8.2%',
-      changeType: 'positive' as const,
-    },
-    {
-      icon: <TrendingUp className="w-6 h-6" />,
-      label: 'Average Earnings',
-      value: '1.8 SOL',
-      change: '+15.3%',
-      changeType: 'positive' as const,
-    },
-    {
-      icon: <DollarSign className="w-6 h-6" />,
-      label: 'Top Earner',
-      value: '3.42 SOL',
-      change: '@memelord',
-      changeType: 'neutral' as const,
-    },
-  ];
+  // Helper function to format currency
+  const formatCurrency = (amount: number): string => {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(1)}K`;
+    } else {
+      return `$${amount.toFixed(0)}`;
+    }
+  };
+
+  // Helper function to format SOL
+  const formatSOL = (amount: number): string => {
+    if (amount >= 1000) {
+      return `${(amount / 1000).toFixed(1)}K SOL`;
+    } else {
+      return `${amount.toFixed(2)} SOL`;
+    }
+  };
+
+  // Fetch leaderboard data
+  const fetchLeaderboard = async (period: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/royalty-leaderboard?period=${period}&limit=100`);
+      const data: RoyaltyLeaderboardResponse = await response.json();
+      
+      if (data.success) {
+        setLeaderboardData(data.data);
+        
+        // Calculate stats
+        const totalEarnings = data.data.reduce((sum, entry) => sum + entry.total_earnings_usd, 0);
+        const averageEarnings = data.data.length > 0 ? totalEarnings / data.data.length : 0;
+        
+        setStats({
+          totalEarners: data.data.length,
+          totalEarnings,
+          averageEarnings
+        });
+      } else {
+        setError(data.error || 'Failed to fetch leaderboard data');
+      }
+    } catch (err) {
+      setError('Failed to fetch leaderboard data');
+      console.error('Error fetching leaderboard:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeaderboard(selectedPeriod);
+  }, [selectedPeriod]);
+
+  const handleCreateToken = () => {
+    window.location.href = '/create';
+  };
+
+  const getRankBadge = (rank: number) => {
+    if (rank === 1) {
+      return 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-background-dark';
+    } else if (rank === 2) {
+      return 'bg-gradient-to-r from-gray-300 to-gray-500 text-background-dark';
+    } else if (rank === 3) {
+      return 'bg-gradient-to-r from-amber-600 to-amber-800 text-background-dark';
+    } else {
+      return 'bg-background-elevated text-text-secondary';
+    }
+  };
+
+  const getInitials = (socialOrWallet: string) => {
+    if (socialOrWallet.startsWith('@')) {
+      return socialOrWallet.charAt(1).toUpperCase();
+    } else if (socialOrWallet.length > 0) {
+      return socialOrWallet.charAt(0).toUpperCase();
+    }
+    return '?';
+  };
 
   return (
-    <div className="min-h-screen bg-background-dark">
+    <div className="min-h-screen bg-background-primary">
       {/* Header */}
-      <Header currentPath="/leaderboard" />
-
-      {/* Main Content */}
-      <main className="pt-16">
-        {/* Hero Section */}
-        <section className="py-20 bg-gradient-to-br from-background-card to-background-elevated">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center space-x-2 bg-background-dark rounded-full px-4 py-2 mb-4">
-                <Trophy className="w-5 h-5 text-primary-mint" />
-                <span className="text-sm font-medium text-text-primary">Royalty Leaderboard</span>
+      <div className="bg-background-card border-b border-background-elevated">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-3 mb-4 sm:mb-0">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
+                <Trophy className="w-6 h-6 text-background-dark" />
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4">
-                Top Royalty Earners
-              </h1>
-              <p className="text-xl text-text-secondary max-w-2xl mx-auto">
-                Discover the highest-earning creators and influencers on SplitzFun. See who's leading the royalty revolution.
-              </p>
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold text-text-primary">
+                  Royalty Leaderboard
+                </h1>
+                <p className="text-text-secondary">
+                  Top royalty earners on SplitzFun
+                </p>
+              </div>
             </div>
+            
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleCreateToken}
+              className="flex items-center"
+            >
+              Launch Token
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              {stats.map((stat, index) => (
-                <StatCard key={index} {...stat} />
+      {/* Stats Cards */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-background-card rounded-2xl p-6 border border-background-elevated">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
+                <Users className="w-5 h-5 text-background-dark" />
+              </div>
+              <div>
+                <p className="text-text-secondary text-sm">Total Earners</p>
+                <p className="text-2xl font-bold text-text-primary">{stats.totalEarners}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-background-card rounded-2xl p-6 border border-background-elevated">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-primary-aqua to-primary-mint flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-background-dark" />
+              </div>
+              <div>
+                <p className="text-text-secondary text-sm">Total Earnings</p>
+                <p className="text-2xl font-bold text-text-primary">{formatCurrency(stats.totalEarnings)}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-background-card rounded-2xl p-6 border border-background-elevated">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-background-dark" />
+              </div>
+              <div>
+                <p className="text-text-secondary text-sm">Average Earnings</p>
+                <p className="text-2xl font-bold text-text-primary">{formatCurrency(stats.averageEarnings)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Time Period Filters */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {timePeriods.map((period) => {
+            const Icon = period.icon;
+            return (
+              <button
+                key={period.value}
+                onClick={() => setSelectedPeriod(period.value as any)}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+                  selectedPeriod === period.value
+                    ? 'bg-primary-mint text-background-dark border-primary-mint'
+                    : 'bg-background-card text-text-secondary border-background-elevated hover:bg-background-elevated'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="font-medium">{period.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Leaderboard */}
+        <div className="bg-background-card rounded-2xl border border-background-elevated overflow-hidden">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-mint" />
+              <span className="ml-3 text-text-secondary">Loading leaderboard...</span>
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <p className="text-text-secondary mb-4">{error}</p>
+                <Button variant="outline" onClick={() => fetchLeaderboard(selectedPeriod)}>
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          ) : leaderboardData.length === 0 ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center max-w-md">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-4">
+                  <Trophy className="w-8 h-8 text-background-dark" />
+                </div>
+                <h3 className="text-xl font-bold text-text-primary mb-2">No Royalty Earners Yet</h3>
+                <p className="text-text-secondary mb-6">
+                  Be the first to launch a token and take the top spot on the leaderboard!
+                </p>
+                <Button variant="primary" size="lg" onClick={handleCreateToken}>
+                  Launch Your Token
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-background-elevated">
+              {leaderboardData.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between p-6 hover:bg-background-elevated transition-colors"
+                >
+                  {/* Rank and User Info */}
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${getRankBadge(entry.rank_position)}`}>
+                      #{entry.rank_position}
+                    </div>
+                    
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
+                      <span className="text-background-dark font-bold text-sm">
+                        {getInitials(entry.royalty_earner_social_or_wallet)}
+                      </span>
+                    </div>
+                    
+                    <div>
+                      <p className="font-semibold text-text-primary text-lg">
+                        {entry.royalty_earner_social_or_wallet}
+                      </p>
+                      <div className="flex items-center space-x-4 text-sm text-text-secondary">
+                        <span>{entry.royalty_role || 'Creator'}</span>
+                        {entry.top_token_symbol && (
+                          <span>• Top: {entry.top_token_symbol}</span>
+                        )}
+                        <span>• {entry.tokens_earned_from} tokens</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Earnings */}
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-primary-mint">
+                      {formatCurrency(entry.total_earnings_usd)}
+                    </p>
+                    <p className="text-text-secondary text-sm">
+                      {formatSOL(entry.total_earnings_sol)} • {entry.payout_count} payouts
+                    </p>
+                    {entry.average_payout_usd && (
+                      <p className="text-text-secondary text-xs">
+                        Avg: {formatCurrency(entry.average_payout_usd)}
+                      </p>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
-
-            {/* Time Period Selector */}
-            <div className="flex justify-center">
-              <div className="bg-background-dark rounded-xl p-1 border border-background-elevated">
-                {['day', 'week', 'month', 'all-time'].map((period) => (
-                  <button
-                    key={period}
-                    onClick={() => setTimePeriod(period)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      timePeriod === period
-                        ? 'bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    {period.charAt(0).toUpperCase() + period.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Leaderboard Table */}
-        <section className="py-12">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="bg-background-card rounded-2xl border border-background-elevated overflow-hidden">
-              <div className="p-6 border-b border-background-elevated">
-                <h2 className="text-2xl font-bold text-text-primary">
-                  {timePeriod.charAt(0).toUpperCase() + timePeriod.slice(1)} Rankings
-                </h2>
-                <p className="text-text-secondary mt-1">
-                  Top royalty earners for the selected time period
-                </p>
-              </div>
-              
-              <LeaderboardTable entries={leaderboardData} />
-            </div>
-          </div>
-        </section>
-
-        {/* How It Works */}
-        <section className="py-12 bg-background-card">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h3 className="text-2xl font-bold text-text-primary mb-4">
-              How Royalty Delegation Works
-            </h3>
-            <p className="text-text-secondary text-lg leading-relaxed mb-8">
-              Token owners can delegate royalties to community members and influencers who are actively promoting their tokens and driving positive price impact. This creates a fair distribution system that rewards real value creation.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-background-dark rounded-xl p-6 border border-background-elevated">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-4">
-                  <Share2 className="w-6 h-6 text-background-dark" />
-                </div>
-                <h4 className="text-lg font-semibold text-text-primary mb-2">Owner Delegation</h4>
-                <p className="text-text-secondary text-sm">
-                  Token owners can directly delegate a percentage of royalties to community members, influencers, or content creators who are helping grow their token's ecosystem.
-                </p>
-              </div>
-              
-              <div className="bg-background-dark rounded-xl p-6 border border-background-elevated">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-4">
-                  <Lightbulb className="w-6 h-6 text-background-dark" />
-                </div>
-                <h4 className="text-lg font-semibold text-text-primary mb-2">Community Suggestions</h4>
-                <p className="text-text-secondary text-sm">
-                  Community members can suggest new royalty earners with evidence of their contributions, impact on token price, and community engagement.
-                </p>
-              </div>
-              
-              <div className="bg-background-dark rounded-xl p-6 border border-background-elevated">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-4">
-                  <Users2 className="w-6 h-6 text-background-dark" />
-                </div>
-                <h4 className="text-lg font-semibold text-text-primary mb-2">Fair Distribution</h4>
-                <p className="text-text-secondary text-sm">
-                  Royalties are distributed based on measurable impact: community building, content creation, social media promotion, and positive price influence.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 bg-background-dark rounded-xl p-6 border border-background-elevated">
-              <h4 className="text-lg font-semibold text-text-primary mb-3">Why Delegate Royalties?</h4>
-              <p className="text-text-secondary text-sm leading-relaxed">
-                By delegating royalties to active community members and influencers, token owners create a sustainable ecosystem where everyone is incentivized to contribute positively. This includes social media promotion, content creation, community management, and other activities that drive genuine engagement and price appreciation. The goal is to reward those who are actually helping the token succeed, not just those who own it.
-              </p>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <Footer />
+          )}
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default LeaderboardPage;
