@@ -146,8 +146,17 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               </button>
             </div>
 
-            {/* Mobile menu button */}
-            <div className="md:hidden">
+            {/* Mobile actions */}
+            <div className="md:hidden flex items-center space-x-2">
+              <Link
+                href="/create"
+                className="h-10 w-10 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none flex items-center justify-center"
+                style={{ outline: 'none' }}
+                aria-label="Create coin"
+              >
+                <Plus className="w-5 h-5" />
+              </Link>
+              <ConnectWalletButton variant="secondary" size="md" className="h-10" />
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="h-10 w-10 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
@@ -189,19 +198,6 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
                     </div>
                   </div>
                 )}
-                
-                <div className="pt-4 space-y-3">
-                  <Link
-                    href="/create"
-                    className="w-full h-12 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none text-center flex items-center justify-center"
-                    onClick={() => setIsMenuOpen(false)}
-                    style={{ outline: 'none' }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create coin
-                  </Link>
-                  <ConnectWalletButton variant="secondary" size="md" className="w-full h-12" />
-                </div>
               </div>
             </div>
           )}
