@@ -51,6 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       await updateStat('total_tokens_launched', tokenCount || 0, (tokenCount || 0).toString());
       results.push({ stat: 'total_tokens_launched', success: true, value: tokenCount || 0 });
+      console.log(`✅ Total tokens launched: ${tokenCount || 0}`);
     } catch (error) {
       console.error('❌ Error updating total tokens:', error);
       results.push({ stat: 'total_tokens_launched', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
@@ -69,22 +70,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       await updateStat('total_active_holders', totalHolders, formatNumber(totalHolders));
       results.push({ stat: 'total_active_holders', success: true, value: totalHolders });
+      console.log(`✅ Total active holders: ${totalHolders}`);
     } catch (error) {
       console.error('❌ Error updating total holders:', error);
       results.push({ stat: 'total_active_holders', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
 
-    // 4. Update Total Royalty Earners
+    // 4. Update Total Royalty Earners (from token_ownership.royalty_earners JSONB)
     try {
-      const { count: earnerCount, error: earnerError } = await supabase
-        .from('royalty_payouts')
-        .select('royalty_earner_social_or_wallet', { count: 'exact', head: true })
-        .eq('transaction_status', 'confirmed');
+      const { data: ownershipData, error: ownershipError } = await supabase
+        .from('token_ownership')
+        .select('royalty_earners')
+        .not('royalty_earners', 'is', null);
 
-      if (earnerError) throw earnerError;
+      if (ownershipError) throw ownershipError;
 
-      await updateStat('total_royalty_earners', earnerCount || 0, (earnerCount || 0).toString());
-      results.push({ stat: 'total_royalty_earners', success: true, value: earnerCount || 0 });
+      // Count all unique earners from all tokens
+      const allEarners = new Set<string>();
+      ownershipData?.forEach(ownership => {
+        if (ownership.royalty_earners && Array.isArray(ownership.royalty_earners)) {
+          ownership.royalty_earners.forEach((earner: any) => {
+            if (earner && typeof earner === 'string') {
+              allEarners.add(earner);
+            } else if (earner && typeof earner === 'object' && earner.social_or_wallet) {
+              allEarners.add(earner.social_or_wallet);
+            }
+          });
+        }
+      });
+
+      const totalEarners = allEarners.size;
+      
+      await updateStat('total_royalty_earners', totalEarners, totalEarners.toString());
+      results.push({ stat: 'total_royalty_earners', success: true, value: totalEarners });
+      console.log(`✅ Total royalty earners: ${totalEarners}`);
     } catch (error) {
       console.error('❌ Error updating total earners:', error);
       results.push({ stat: 'total_royalty_earners', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
