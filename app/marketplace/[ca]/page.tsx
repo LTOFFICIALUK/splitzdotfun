@@ -6,6 +6,20 @@ import Link from 'next/link';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Button from '@/components/ui/Button';
+import { useWallet } from '@/components/ui/WalletProvider';
+import { 
+  FaXTwitter, 
+  FaInstagram, 
+  FaYoutube, 
+  FaTwitch, 
+  FaLinkedin, 
+  FaGithub, 
+  FaTiktok
+} from 'react-icons/fa6';
+import { 
+  SiKick, 
+  SiRumble 
+} from 'react-icons/si';
 import { 
   ArrowLeft, 
   ShoppingCart, 
@@ -16,8 +30,29 @@ import {
   TrendingUp,
   Calendar,
   DollarSign,
-  Percent
+  Percent,
+  Settings,
+  X,
+  AlertTriangle,
+  Plus,
+  ChevronDown,
+  Wallet,
+  MessageCircle,
+  CheckCircle
 } from 'lucide-react';
+
+const SOCIAL_PLATFORMS = [
+  { key: 'X', name: 'X', icon: <FaXTwitter className="w-4 h-4" /> },
+  { key: 'Instagram', name: 'Instagram', icon: <FaInstagram className="w-4 h-4" /> },
+  { key: 'Instagram Threads', name: 'Instagram Threads', icon: <MessageCircle className="w-4 h-4" /> },
+  { key: 'TikTok', name: 'TikTok', icon: <FaTiktok className="w-4 h-4" /> },
+  { key: 'YouTube', name: 'YouTube', icon: <FaYoutube className="w-4 h-4" /> },
+  { key: 'GitHub', name: 'GitHub', icon: <FaGithub className="w-4 h-4" /> },
+  { key: 'LinkedIn', name: 'LinkedIn', icon: <FaLinkedin className="w-4 h-4" /> },
+  { key: 'Twitch', name: 'Twitch', icon: <FaTwitch className="w-4 h-4" /> },
+  { key: 'Kick', name: 'Kick', icon: <SiKick className="w-4 h-4" /> },
+  { key: 'Rumble', name: 'Rumble', icon: <SiRumble className="w-4 h-4" /> }
+] as const;
 
 interface MarketplaceListing {
   id: string;
@@ -78,10 +113,32 @@ interface DatabaseListing {
 export default function MarketplaceListingDetailPage() {
   const params = useParams();
   const contractAddress = params.ca as string;
+  const { publicKey, isConnected } = useWallet();
   
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showRemoveConfirmModal, setShowRemoveConfirmModal] = useState(false);
+  const [isUpdatingListing, setIsUpdatingListing] = useState(false);
+  const [isRemovingListing, setIsRemovingListing] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [editListingData, setEditListingData] = useState({
+    price: '',
+    newOwnerFeeShare: 0,
+    newFeeSplits: [] as Array<{
+      id: string;
+      label: string;
+      percentage: number;
+      timeLock: number;
+      isRemoved: boolean;
+      type?: 'wallet' | 'social';
+      social_or_wallet?: string;
+      showPlatformDropdown?: boolean;
+    }>,
+    description: ''
+  });
 
   useEffect(() => {
     const fetchListingDetails = async () => {
@@ -103,6 +160,12 @@ export default function MarketplaceListingDetailPage() {
           console.log('Raw API response:', result.data);
           console.log('Profiles data:', result.data.profiles);
           
+          // Validate that profiles data exists
+          if (!result.data.profiles) {
+            console.error('No profiles data found in API response');
+            throw new Error('Seller information not available');
+          }
+          
           // Transform database listing to marketplace format
           const transformedListing: MarketplaceListing = {
             id: dbListing.id,
@@ -113,7 +176,7 @@ export default function MarketplaceListingDetailPage() {
             price: dbListing.listing_price,
             currency: 'SOL' as const,
             description: dbListing.description || 'No description provided',
-            seller: dbListing.profiles.username || dbListing.profiles.wallet_address.slice(0, 8) + '...',
+            seller: dbListing.profiles?.username || (dbListing.profiles?.wallet_address ? dbListing.profiles.wallet_address.slice(0, 8) + '...' : 'Unknown Seller'),
             imageUrl: dbListing.tokens.image_url || '/images/placeholder-token.png',
             createdAt: dbListing.created_at,
             tokenId: dbListing.token_id,
@@ -126,6 +189,10 @@ export default function MarketplaceListingDetailPage() {
           };
 
           console.log('Transformed listing:', transformedListing);
+          console.log('Seller information in transformed listing:', {
+            seller: transformedListing.seller,
+            profiles: transformedListing.profiles
+          });
           setListing(transformedListing);
         } else {
           throw new Error(result.error || 'Listing not found');
@@ -154,6 +221,124 @@ export default function MarketplaceListingDetailPage() {
       alert(`Contacting seller ${listing.seller}... (This is a stub)`);
     }
   };
+
+  const handleEditListing = () => {
+    if (listing) {
+      // Populate the edit form with current listing data
+      setEditListingData({
+        price: listing.price.toString(),
+        newOwnerFeeShare: listing.newOwnerFeeShare,
+        newFeeSplits: listing.proposedFeeSplits.map(split => ({
+          id: split.id || Math.random().toString(),
+          label: split.label,
+          percentage: split.percentage,
+          timeLock: split.timeLock || 0,
+          isRemoved: false
+        })),
+        description: listing.description
+      });
+      setShowEditModal(true);
+    }
+  };
+
+  const handleRemoveListing = () => {
+    setShowRemoveConfirmModal(true);
+  };
+
+  const handleConfirmRemoveListing = async () => {
+    if (!listing) return;
+
+    setIsRemovingListing(true);
+
+    try {
+      const response = await fetch(`/api/marketplace/listings/${listing.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove listing');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setShowRemoveConfirmModal(false);
+        setSuccessMessage('Listing removed successfully!');
+        setShowSuccessMessage(true);
+        
+        // Hide the success message after 3 seconds
+        setTimeout(() => {
+          setShowSuccessMessage(false);
+        }, 3000);
+        
+        // Redirect to token management page
+        if (result.tokenAddress) {
+          setTimeout(() => {
+            window.location.href = `/token/${result.tokenAddress}/manage`;
+          }, 1500);
+        }
+      } else {
+        throw new Error(result.error || 'Failed to remove listing');
+      }
+    } catch (error) {
+      console.error('Error removing listing:', error);
+      alert(`Failed to remove listing: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsRemovingListing(false);
+    }
+  };
+
+  const handleUpdateListing = async () => {
+    if (!listing) return;
+
+    setIsUpdatingListing(true);
+
+    try {
+      const response = await fetch(`/api/marketplace/listings/${listing.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          listingPrice: parseFloat(editListingData.price),
+          description: editListingData.description,
+          newOwnerFeeShare: editListingData.newOwnerFeeShare,
+          newFeeSplits: editListingData.newFeeSplits
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update listing');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setShowEditModal(false);
+        // Refresh the listing data
+        const refreshResponse = await fetch(`/api/marketplace/listings/ca/${contractAddress}`);
+        if (refreshResponse.ok) {
+          const refreshResult = await refreshResponse.json();
+          if (refreshResult.success) {
+            setListing(refreshResult.data);
+          }
+        }
+        alert('Listing updated successfully!');
+      } else {
+        throw new Error(result.error || 'Failed to update listing');
+      }
+    } catch (error) {
+      console.error('Error updating listing:', error);
+      alert(`Failed to update listing: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUpdatingListing(false);
+    }
+  };
+
+  // Check if the current user is the seller
+  const isCurrentUserSeller = isConnected && publicKey && listing?.profiles?.wallet_address === publicKey;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -352,46 +537,90 @@ export default function MarketplaceListingDetailPage() {
 
             {/* Right Column - Actions & Seller Info */}
             <div className="xl:col-span-1 space-y-6">
-              {/* Buy Now Card */}
+              {/* Action Card */}
               <div className="bg-background-card rounded-2xl border border-background-elevated p-6">
-                <h3 className="text-xl font-semibold text-text-primary mb-4">Purchase</h3>
-                
-                <div className="space-y-4 mb-6">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Price:</span>
-                    <span className="text-text-primary font-semibold">{listing.price} {listing.currency}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Ownership:</span>
-                    <span className="text-text-primary font-semibold">{listing.ownershipPercentage}%</span>
-                  </div>
-                  <div className="border-t border-background-elevated pt-2">
-                    <div className="flex justify-between text-lg font-bold">
-                      <span className="text-text-primary">Total:</span>
-                      <span className="text-primary-mint">{listing.price} {listing.currency}</span>
+                {isCurrentUserSeller ? (
+                  <>
+                    <h3 className="text-xl font-semibold text-text-primary mb-4">Manage Your Listing</h3>
+                    
+                    <div className="space-y-4 mb-6">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-text-secondary">Price:</span>
+                        <span className="text-text-primary font-semibold">{listing.price} {listing.currency}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-text-secondary">Ownership:</span>
+                        <span className="text-text-primary font-semibold">{listing.ownershipPercentage}%</span>
+                      </div>
+                      <div className="border-t border-background-elevated pt-2">
+                        <div className="flex justify-between text-lg font-bold">
+                          <span className="text-text-primary">Total:</span>
+                          <span className="text-primary-mint">{listing.price} {listing.currency}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={handleBuyNow}
-                  className="w-full mb-3"
-                  disabled={listing.isSold || !listing.isActive}
-                >
-                  <ShoppingCart className="w-5 h-5 mr-2" />
-                  {listing.isSold ? 'Sold' : 'Buy Now'}
-                </Button>
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={handleEditListing}
+                      className="w-full mb-3"
+                    >
+                      <Settings className="w-5 h-5 mr-2" />
+                      Edit Listing
+                    </Button>
 
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  onClick={handleContactSeller}
-                  className="w-full"
-                >
-                  Make Offer
-                </Button>
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      onClick={handleRemoveListing}
+                      className="w-full"
+                    >
+                      Remove Listing
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-xl font-semibold text-text-primary mb-4">Purchase</h3>
+                    
+                    <div className="space-y-4 mb-6">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-text-secondary">Price:</span>
+                        <span className="text-text-primary font-semibold">{listing.price} {listing.currency}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-text-secondary">Ownership:</span>
+                        <span className="text-text-primary font-semibold">{listing.ownershipPercentage}%</span>
+                      </div>
+                      <div className="border-t border-background-elevated pt-2">
+                        <div className="flex justify-between text-lg font-bold">
+                          <span className="text-text-primary">Total:</span>
+                          <span className="text-primary-mint">{listing.price} {listing.currency}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={handleBuyNow}
+                      className="w-full mb-3"
+                      disabled={listing.isSold || !listing.isActive}
+                    >
+                      <ShoppingCart className="w-5 h-5 mr-2" />
+                      {listing.isSold ? 'Sold' : 'Buy Now'}
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      onClick={handleContactSeller}
+                      className="w-full"
+                    >
+                      Make Offer
+                    </Button>
+                  </>
+                )}
               </div>
 
               {/* Seller Information */}
@@ -515,6 +744,446 @@ export default function MarketplaceListingDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* Edit Listing Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background-card rounded-2xl border border-background-elevated p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-text-primary">Edit Listing</h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-text-secondary hover:text-text-primary transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Warning Section */}
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-yellow-500 mb-2">Management Transfer Warning</h3>
+                    <p className="text-text-secondary text-sm">
+                      By updating this listing, you are modifying the proposed management transfer terms. 
+                      The new owner will have full control over fee distributions and token management. 
+                      You will retain your fee share based on the time locks you set below.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Listing Price */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  Listing Price (SOL)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editListingData.price}
+                  onChange={(e) => setEditListingData(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="0.00"
+                  className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                />
+              </div>
+
+              {/* New Owner Fee Share */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  New Owner Fee Share (%)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editListingData.newOwnerFeeShare}
+                  onChange={(e) => setEditListingData(prev => ({ ...prev, newOwnerFeeShare: parseInt(e.target.value) || 0 }))}
+                  placeholder="0"
+                  className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  Listing Description
+                </label>
+                <textarea
+                  value={editListingData.description}
+                  onChange={(e) => setEditListingData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Describe why someone should buy this management position..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-mint resize-none"
+                />
+              </div>
+
+              {/* Fee Split Management */}
+              <div>
+                <h3 className="text-lg font-semibold text-text-primary mb-4">Fee Split Proposal</h3>
+                <p className="text-text-secondary text-sm mb-4">
+                  Configure the new fee distribution and time locks for current recipients. 
+                  Set time locks to continue earning fees after management transfer.
+                </p>
+
+                <div className="space-y-4">
+                  {editListingData.newFeeSplits.map((split, index) => (
+                    <div key={split.id} className="bg-background-dark rounded-lg p-4 border border-background-elevated">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={!split.isRemoved}
+                            onChange={(e) => {
+                              const newSplits = [...editListingData.newFeeSplits];
+                              newSplits[index].isRemoved = !e.target.checked;
+                              setEditListingData({...editListingData, newFeeSplits: newSplits});
+                            }}
+                            className="w-4 h-4 text-primary-mint bg-background-elevated border-background-elevated rounded focus:ring-primary-mint"
+                          />
+                          <span className={`font-medium ${split.isRemoved ? 'text-text-secondary line-through' : 'text-text-primary'}`}>
+                            {split.label || 'New Recipient'}
+                          </span>
+                        </div>
+                        {!split.isRemoved && (
+                          <span className="text-sm text-text-secondary">
+                            Current: {split.percentage}%
+                          </span>
+                        )}
+                      </div>
+
+                      {!split.isRemoved && (
+                        <div className="space-y-4">
+                          {/* Platform/Type Selection for New Recipients */}
+                          {!split.label && (
+                            <div>
+                              <label className="block text-sm font-medium text-text-secondary mb-2">
+                                Recipient Type
+                              </label>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newSplits = [...editListingData.newFeeSplits];
+                                    newSplits[index].showPlatformDropdown = !newSplits[index].showPlatformDropdown;
+                                    setEditListingData({...editListingData, newFeeSplits: newSplits});
+                                  }}
+                                  className="w-full px-3 py-2 pr-8 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-between"
+                                >
+                                  <span>{split.type === 'wallet' ? 'Wallet Address' : (split.social_or_wallet?.split(':')[0] || 'Select platform')}</span>
+                                  <ChevronDown className="w-4 h-4" />
+                                </button>
+                                
+                                {split.showPlatformDropdown && (
+                                  <div className="absolute top-full left-0 right-0 mt-1 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                                    <div className="py-2">
+                                      <button
+                                        onClick={() => {
+                                          const newSplits = [...editListingData.newFeeSplits];
+                                          newSplits[index].type = 'wallet';
+                                          newSplits[index].social_or_wallet = '';
+                                          newSplits[index].showPlatformDropdown = false;
+                                          setEditListingData({...editListingData, newFeeSplits: newSplits});
+                                        }}
+                                        className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                                      >
+                                        <Wallet className="w-4 h-4" />
+                                        <span className="text-sm">Wallet Address</span>
+                                      </button>
+                                      
+                                      {SOCIAL_PLATFORMS.map(platform => (
+                                        <button
+                                          key={platform.key}
+                                          onClick={() => {
+                                            const newSplits = [...editListingData.newFeeSplits];
+                                            newSplits[index].type = 'social';
+                                            newSplits[index].social_or_wallet = platform.key + ':';
+                                            newSplits[index].showPlatformDropdown = false;
+                                            setEditListingData({...editListingData, newFeeSplits: newSplits});
+                                          }}
+                                          className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                                        >
+                                          {platform.icon}
+                                          <span className="text-sm">{platform.name}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Input field for wallet address or social handle */}
+                              <div className="mt-3">
+                                <input
+                                  type="text"
+                                  value={split.type === 'wallet' ? split.social_or_wallet || '' : split.social_or_wallet?.split(':')[1] || ''}
+                                  onChange={(e) => {
+                                    const newSplits = [...editListingData.newFeeSplits];
+                                    if (split.type === 'wallet') {
+                                      newSplits[index].social_or_wallet = e.target.value;
+                                      newSplits[index].label = e.target.value;
+                                    } else {
+                                      const platform = split.social_or_wallet?.split(':')[0] || 'X';
+                                      newSplits[index].social_or_wallet = platform + ':' + e.target.value;
+                                      newSplits[index].label = platform + ':' + e.target.value;
+                                    }
+                                    setEditListingData({...editListingData, newFeeSplits: newSplits});
+                                  }}
+                                  placeholder={split.type === 'wallet' ? 'Enter wallet address' : (() => {
+                                    const platform = split.social_or_wallet?.split(':')[0];
+                                    if (platform === 'LinkedIn') return 'Link (https://linkedin.com/in/username)';
+                                    if (platform === 'GitHub') return 'Link (https://github.com/username)';
+                                    if (platform === 'YouTube') return 'Link (https://youtube.com/@channel)';
+                                    if (platform === 'X') return '@username';
+                                    if (platform === 'Instagram') return '@username';
+                                    if (platform === 'TikTok') return '@username';
+                                    if (platform === 'Twitch') return '@username';
+                                    if (platform === 'Kick') return '@username';
+                                    if (platform === 'Rumble') return '@username';
+                                    if (platform === 'Instagram Threads') return '@username';
+                                    return '@username';
+                                  })()}
+                                  className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-text-secondary mb-1">
+                                New Percentage
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={split.percentage}
+                                onChange={(e) => {
+                                  const newSplits = [...editListingData.newFeeSplits];
+                                  newSplits[index].percentage = parseInt(e.target.value) || 0;
+                                  setEditListingData({...editListingData, newFeeSplits: newSplits});
+                                }}
+                                className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-text-secondary mb-1">
+                                Time Lock (days)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={split.timeLock}
+                                onChange={(e) => {
+                                  const newSplits = [...editListingData.newFeeSplits];
+                                  newSplits[index].timeLock = parseInt(e.target.value) || 0;
+                                  setEditListingData({...editListingData, newFeeSplits: newSplits});
+                                }}
+                                placeholder="0 = no lock"
+                                className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add New Recipient Button */}
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newSplit = {
+                        id: Date.now().toString(),
+                        label: '',
+                        percentage: 0,
+                        timeLock: 0,
+                        isRemoved: false,
+                        type: 'wallet' as 'wallet' | 'social',
+                        social_or_wallet: ''
+                      };
+                      setEditListingData(prev => ({
+                        ...prev,
+                        newFeeSplits: [...prev.newFeeSplits, newSplit]
+                      }));
+                    }}
+                    className="w-full py-3 border-2 border-dashed border-background-elevated rounded-lg text-text-secondary hover:text-text-primary hover:border-primary-mint transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New Recipient</span>
+                  </button>
+                </div>
+
+                {/* Total Percentage Display */}
+                <div className="mt-4 p-3 bg-background-dark rounded-lg border border-background-elevated">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-text-secondary">Current Recipients:</span>
+                      <span className="text-sm text-text-primary">
+                        {editListingData.newFeeSplits.filter(s => !s.isRemoved).reduce((sum, split) => sum + split.percentage, 0)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-text-secondary">New Owner Share:</span>
+                      <span className="text-sm text-blue-400">
+                        {editListingData.newOwnerFeeShare}%
+                      </span>
+                    </div>
+                    <div className="border-t border-background-elevated pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-text-primary">Total Percentage:</span>
+                        <span className={`text-sm font-bold ${
+                          (editListingData.newFeeSplits.filter(s => !s.isRemoved).reduce((sum, split) => sum + split.percentage, 0) + editListingData.newOwnerFeeShare) === 100 
+                            ? 'text-green-400' 
+                            : 'text-red-400'
+                        }`}>
+                          {(editListingData.newFeeSplits.filter(s => !s.isRemoved).reduce((sum, split) => sum + split.percentage, 0) + editListingData.newOwnerFeeShare)}%
+                        </span>
+                      </div>
+                      {(editListingData.newFeeSplits.filter(s => !s.isRemoved).reduce((sum, split) => sum + split.percentage, 0) + editListingData.newOwnerFeeShare) !== 100 && (
+                        <p className="text-xs text-red-400 mt-1">
+                          Total must equal 100% for a valid listing
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3 pt-6 border-t border-background-elevated mt-6">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 bg-background-elevated text-text-primary px-4 py-3 rounded-lg font-medium hover:bg-background-dark transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateListing}
+                disabled={
+                  !editListingData.price || 
+                  parseFloat(editListingData.price) <= 0 ||
+                  (editListingData.newFeeSplits.filter(s => !s.isRemoved).reduce((sum, split) => sum + split.percentage, 0) + editListingData.newOwnerFeeShare) !== 100 ||
+                  isUpdatingListing
+                }
+                className={`flex-1 px-4 py-3 rounded-lg font-medium transition-opacity flex items-center justify-center space-x-2 ${
+                  editListingData.price && 
+                  parseFloat(editListingData.price) > 0 &&
+                  (editListingData.newFeeSplits.filter(s => !s.isRemoved).reduce((sum, split) => sum + split.percentage, 0) + editListingData.newOwnerFeeShare) === 100 &&
+                  !isUpdatingListing
+                    ? 'bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark hover:opacity-90'
+                    : 'bg-background-elevated text-text-secondary cursor-not-allowed opacity-50'
+                }`}
+              >
+                {isUpdatingListing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background-dark"></div>
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  'Update Listing'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Listing Confirmation Modal */}
+      {showRemoveConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background-card rounded-xl border border-background-elevated max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-text-primary">Remove Listing</h2>
+                <button
+                  onClick={() => setShowRemoveConfirmModal(false)}
+                  className="text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Warning Section */}
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h3 className="font-semibold text-red-500 mb-2">Remove Listing</h3>
+                      <p className="text-text-secondary text-sm">
+                        Are you sure you want to remove this listing? You can relist it at any time from your token management page.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Listing Info */}
+                {listing && (
+                  <div className="bg-background-dark rounded-lg p-4 border border-background-elevated">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-text-secondary">Token:</span>
+                        <span className="text-sm text-text-primary">{listing.tokenName} ({listing.tokenTicker})</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-text-secondary">Price:</span>
+                        <span className="text-sm text-text-primary">{listing.price} {listing.currency}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-text-secondary">Ownership:</span>
+                        <span className="text-sm text-text-primary">{listing.ownershipPercentage}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3 pt-6 border-t border-background-elevated mt-6">
+                <button
+                  onClick={() => setShowRemoveConfirmModal(false)}
+                  className="flex-1 bg-background-elevated text-text-primary px-4 py-3 rounded-lg font-medium hover:bg-background-dark transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmRemoveListing}
+                  disabled={isRemovingListing}
+                  className="flex-1 bg-red-500 text-white px-4 py-3 rounded-lg font-medium hover:bg-red-600 transition-colors flex items-center justify-center space-x-2"
+                >
+                  {isRemovingListing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Removing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>Remove Listing</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Message Toast */}
+      {showSuccessMessage && (
+        <div className="fixed bottom-4 right-4 z-50 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-6 py-3 rounded-lg shadow-lg border border-background-elevated flex items-center space-x-2 animate-in slide-in-from-right duration-300">
+          <CheckCircle className="w-5 h-5" />
+          <span className="font-medium">{successMessage}</span>
+        </div>
+      )}
 
       <Footer />
     </div>

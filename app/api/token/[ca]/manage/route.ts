@@ -54,6 +54,20 @@ export async function GET(
       console.error('Error fetching ownership data:', ownershipError);
     }
 
+    // Fetch marketplace listing data
+    const { data: marketplaceListing, error: listingError } = await supabase
+      .from('marketplace_listings')
+      .select('*')
+      .eq('token_id', tokenData.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (listingError && listingError.code !== 'PGRST116') { // PGRST116 is "not found"
+      console.error('Error fetching marketplace listing:', listingError);
+    }
+
     // Debug logging
     console.log('Ownership data:', ownershipData);
     console.log('Royalty earners raw:', ownershipData?.royalty_earners);
@@ -254,7 +268,16 @@ export async function GET(
       socialLink: tokenData.social_link || null,
       metadataUrl: tokenData.metadata_url || null,
       createdAt: tokenData.created_at || null,
-      updatedAt: tokenData.updated_at || null
+      updatedAt: tokenData.updated_at || null,
+      isListed: !!marketplaceListing,
+      marketplaceListing: marketplaceListing ? {
+        id: marketplaceListing.id,
+        listing_price: marketplaceListing.listing_price,
+        description: marketplaceListing.description,
+        new_owner_fee_share: marketplaceListing.new_owner_fee_share,
+        proposed_fee_splits: marketplaceListing.proposed_fee_splits,
+        created_at: marketplaceListing.created_at
+      } : undefined
     };
 
     return NextResponse.json({

@@ -33,7 +33,7 @@ import {
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
-import { getProfile, Profile } from '@/lib/supabase';
+import { getOrCreateProfile, Profile } from '@/lib/supabase';
 
 interface RoyaltyRecipient {
   id: string;
@@ -101,7 +101,7 @@ const CreateCoin: React.FC = () => {
     if (publicKey) {
       setIsLoadingProfile(true);
       try {
-        const profile = await getProfile(publicKey);
+        const profile = await getOrCreateProfile(publicKey);
         setUserProfile(profile);
       } catch (error) {
         console.error('Error loading profile:', error);

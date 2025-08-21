@@ -42,8 +42,8 @@ export async function GET(
       );
     }
 
-    // Then, find the marketplace listing for this token
-    const { data: listing, error: listingError } = await supabase
+    // Then, find the most recent active marketplace listing for this token
+    const { data: listings, error: listingError } = await supabase
       .from('marketplace_listings')
       .select(`
         *,
@@ -58,7 +58,8 @@ export async function GET(
       `)
       .eq('token_id', token.id)
       .eq('is_active', true)
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
     if (listingError) {
       console.error('Listing error:', listingError);
@@ -68,12 +69,21 @@ export async function GET(
       );
     }
 
-    if (!listing) {
+    if (!listings || listings.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No active listing found for this token' },
         { status: 404 }
       );
     }
+
+    const listing = listings[0];
+
+    // Log the listing data for debugging
+    console.log('Found listing:', {
+      id: listing.id,
+      seller_user_id: listing.seller_user_id,
+      profiles: listing.profiles
+    });
 
     // Combine token and listing data
     const combinedData = {

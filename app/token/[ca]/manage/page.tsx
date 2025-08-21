@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ExternalLink, Copy, CheckCircle, DollarSign, ChevronDown, MessageCircle, Users, Shield, Heart, Wallet, Video, Music, X, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Copy, CheckCircle, DollarSign, ChevronDown, MessageCircle, Users, Shield, Heart, Wallet, Video, Music, X, AlertTriangle, Plus } from 'lucide-react';
 import { 
   FaXTwitter, 
   FaInstagram, 
@@ -17,6 +17,8 @@ import {
 } from 'react-icons/si';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import { useWallet } from '@/components/ui/WalletProvider';
+import { getOrCreateProfile } from '@/lib/supabase';
 
 const SOCIAL_PLATFORMS = [
   { key: 'X', name: 'X', icon: <FaXTwitter className="w-4 h-4" /> },
@@ -76,6 +78,15 @@ interface TokenManagementData {
   metadataUrl: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  isListed: boolean;
+  marketplaceListing?: {
+    id: string;
+    listing_price: number;
+    description: string | null;
+    new_owner_fee_share: number;
+    proposed_fee_splits: any[];
+    created_at: string;
+  };
 }
 
 interface TokenManagePageProps {
@@ -85,6 +96,16 @@ interface TokenManagePageProps {
 }
 
 const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
+  const { publicKey, isConnected } = useWallet();
+
+  // Helper function to format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
   const [tokenData, setTokenData] = useState<TokenManagementData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,10 +134,14 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
       percentage: number;
       timeLock: number; // in days
       isRemoved: boolean;
+      type?: 'wallet' | 'social';
+      social_or_wallet?: string;
+      showPlatformDropdown?: boolean;
     }>,
     description: ''
   });
   const [isCreatingListing, setIsCreatingListing] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   useEffect(() => {
     const fetchTokenData = async () => {
@@ -148,6 +173,26 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
 
     fetchTokenData();
   }, [params.ca]);
+
+  // Fetch user profile when wallet is connected
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!isConnected || !publicKey) {
+        setUserProfile(null);
+        return;
+      }
+
+      try {
+        const profile = await getOrCreateProfile(publicKey);
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Error fetching/creating user profile:', error);
+        setUserProfile(null);
+      }
+    };
+
+    fetchUserProfile();
+  }, [isConnected, publicKey]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -256,24 +301,20 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
   const handleCreateListing = async () => {
     if (!tokenData) return;
 
+    if (!isConnected || !publicKey) {
+      alert('Please connect your wallet to create a listing.');
+      return;
+    }
+
     setIsCreatingListing(true);
 
     try {
-      // For now, let's get the first user from profiles as a temporary solution
-      // In a real app, you'd get this from your auth context
-      const userResponse = await fetch('/api/profiles?limit=1');
-      let sellerUserId = null;
-      
-      if (userResponse.ok) {
-        const userResult = await userResponse.json();
-        if (userResult.success && userResult.data && userResult.data.length > 0) {
-          sellerUserId = userResult.data[0].id;
-        }
+      // Use the cached user profile
+      if (!userProfile) {
+        throw new Error('No profile found for your wallet address. Please ensure you have a profile created.');
       }
       
-      if (!sellerUserId) {
-        throw new Error('No user found. Please ensure you have a profile created.');
-      }
+      const sellerUserId = userProfile.id;
 
       const response = await fetch('/api/marketplace/listings', {
         method: 'POST',
@@ -413,36 +454,48 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
                   <button className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-3 sm:px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity whitespace-nowrap text-sm sm:text-base">
                     Claim Your Fees
                   </button>
-                  <button 
-                    onClick={() => {
-                      // Initialize listing data with current fee splits
-                      // Only include current owner's share, mark the rest as "Buyer"
-                      const currentOwnerSplits = tokenData.royaltyRecipients.map(recipient => ({
-                        id: recipient.id,
-                        label: recipient.label,
-                        percentage: recipient.percentage,
-                        timeLock: 0, // Default no time lock
-                        isRemoved: false
-                      }));
-                      
-                      // Calculate the total percentage of current recipients
-                      const currentTotal = tokenData.royaltyRecipients.reduce((sum, recipient) => sum + recipient.percentage, 0);
-                      
-                      // The new owner gets the remaining percentage (100% - current total)
-                      const newOwnerShare = 100 - currentTotal;
-                      
-                      setListingData({
-                        price: '',
-                        newOwnerFeeShare: newOwnerShare,
-                        newFeeSplits: currentOwnerSplits,
-                        description: ''
-                      });
-                      setShowListingModal(true);
-                    }}
-                    className="bg-background-card border border-background-elevated text-text-primary px-3 sm:px-4 py-2 rounded-lg font-medium hover:bg-background-elevated transition-colors whitespace-nowrap text-sm sm:text-base"
-                  >
-                    List on Marketplace
-                  </button>
+                  {tokenData.isListed ? (
+                    <button 
+                      onClick={() => {
+                        // Navigate to the marketplace listing
+                        window.location.href = `/marketplace/${tokenData.tokenAddress}`;
+                      }}
+                      className="bg-background-card border border-background-elevated text-text-primary px-3 sm:px-4 py-2 rounded-lg font-medium hover:bg-background-elevated transition-colors whitespace-nowrap text-sm sm:text-base"
+                    >
+                      View Your Listing
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => {
+                        // Initialize listing data with current fee splits
+                        // Only include current owner's share, mark the rest as "Buyer"
+                        const currentOwnerSplits = tokenData.royaltyRecipients.map(recipient => ({
+                          id: recipient.id,
+                          label: recipient.label,
+                          percentage: recipient.percentage,
+                          timeLock: 0, // Default no time lock
+                          isRemoved: false
+                        }));
+                        
+                        // Calculate the total percentage of current recipients
+                        const currentTotal = tokenData.royaltyRecipients.reduce((sum, recipient) => sum + recipient.percentage, 0);
+                        
+                        // The new owner gets the remaining percentage (100% - current total)
+                        const newOwnerShare = 100 - currentTotal;
+                        
+                        setListingData({
+                          price: '',
+                          newOwnerFeeShare: newOwnerShare,
+                          newFeeSplits: currentOwnerSplits,
+                          description: ''
+                        });
+                        setShowListingModal(true);
+                      }}
+                      className="bg-background-card border border-background-elevated text-text-primary px-3 sm:px-4 py-2 rounded-lg font-medium hover:bg-background-elevated transition-colors whitespace-nowrap text-sm sm:text-base"
+                    >
+                      List on Marketplace
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -965,7 +1018,7 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
                               className="w-4 h-4 text-primary-mint bg-background-elevated border-background-elevated rounded focus:ring-primary-mint"
                             />
                             <span className={`font-medium ${split.isRemoved ? 'text-text-secondary line-through' : 'text-text-primary'}`}>
-                              {split.label}
+                              {split.label || 'New Recipient'}
                             </span>
                           </div>
                           {!split.isRemoved && (
@@ -976,45 +1029,168 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
                         </div>
 
                         {!split.isRemoved && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-text-secondary mb-1">
-                                New Percentage
-                              </label>
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={split.percentage}
-                                onChange={(e) => {
-                                  const newSplits = [...listingData.newFeeSplits];
-                                  newSplits[index].percentage = parseInt(e.target.value) || 0;
-                                  setListingData({...listingData, newFeeSplits: newSplits});
-                                }}
-                                className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-text-secondary mb-1">
-                                Time Lock (days)
-                              </label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={split.timeLock}
-                                onChange={(e) => {
-                                  const newSplits = [...listingData.newFeeSplits];
-                                  newSplits[index].timeLock = parseInt(e.target.value) || 0;
-                                  setListingData({...listingData, newFeeSplits: newSplits});
-                                }}
-                                placeholder="0 = no lock"
-                                className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
-                              />
+                          <div className="space-y-4">
+                            {/* Platform/Type Selection for New Recipients */}
+                            {!split.label && (
+                              <div>
+                                <label className="block text-sm font-medium text-text-secondary mb-2">
+                                  Recipient Type
+                                </label>
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newSplits = [...listingData.newFeeSplits];
+                                      newSplits[index].showPlatformDropdown = !newSplits[index].showPlatformDropdown;
+                                      setListingData({...listingData, newFeeSplits: newSplits});
+                                    }}
+                                    className="w-full px-3 py-2 pr-8 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-between"
+                                  >
+                                    <span>{split.type === 'wallet' ? 'Wallet Address' : (split.social_or_wallet?.split(':')[0] || 'Select platform')}</span>
+                                    <ChevronDown className="w-4 h-4" />
+                                  </button>
+                                  
+                                  {split.showPlatformDropdown && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-background-card border border-background-elevated rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                                      <div className="py-2">
+                                        <button
+                                          onClick={() => {
+                                            const newSplits = [...listingData.newFeeSplits];
+                                            newSplits[index].type = 'wallet';
+                                            newSplits[index].social_or_wallet = '';
+                                            newSplits[index].showPlatformDropdown = false;
+                                            setListingData({...listingData, newFeeSplits: newSplits});
+                                          }}
+                                          className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                                        >
+                                          <Wallet className="w-4 h-4" />
+                                          <span className="text-sm">Wallet Address</span>
+                                        </button>
+                                        
+                                        {SOCIAL_PLATFORMS.map(platform => (
+                                          <button
+                                            key={platform.key}
+                                            onClick={() => {
+                                              const newSplits = [...listingData.newFeeSplits];
+                                              newSplits[index].type = 'social';
+                                              newSplits[index].social_or_wallet = platform.key + ':';
+                                              newSplits[index].showPlatformDropdown = false;
+                                              setListingData({...listingData, newFeeSplits: newSplits});
+                                            }}
+                                            className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
+                                          >
+                                            {platform.icon}
+                                            <span className="text-sm">{platform.name}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Input field for wallet address or social handle */}
+                                <div className="mt-3">
+                                  <input
+                                    type="text"
+                                    value={split.type === 'wallet' ? split.social_or_wallet || '' : split.social_or_wallet?.split(':')[1] || ''}
+                                    onChange={(e) => {
+                                      const newSplits = [...listingData.newFeeSplits];
+                                      if (split.type === 'wallet') {
+                                        newSplits[index].social_or_wallet = e.target.value;
+                                        newSplits[index].label = e.target.value;
+                                      } else {
+                                        const platform = split.social_or_wallet?.split(':')[0] || 'X';
+                                        newSplits[index].social_or_wallet = platform + ':' + e.target.value;
+                                        newSplits[index].label = platform + ':' + e.target.value;
+                                      }
+                                      setListingData({...listingData, newFeeSplits: newSplits});
+                                    }}
+                                                                          placeholder={split.type === 'wallet' ? 'Enter wallet address' : (() => {
+                                        const platform = split.social_or_wallet?.split(':')[0];
+                                      if (platform === 'LinkedIn') return 'Link (https://linkedin.com/in/username)';
+                                      if (platform === 'GitHub') return 'Link (https://github.com/username)';
+                                      if (platform === 'YouTube') return 'Link (https://youtube.com/@channel)';
+                                      if (platform === 'X') return '@username';
+                                      if (platform === 'Instagram') return '@username';
+                                      if (platform === 'TikTok') return '@username';
+                                      if (platform === 'Twitch') return '@username';
+                                      if (platform === 'Kick') return '@username';
+                                      if (platform === 'Rumble') return '@username';
+                                      if (platform === 'Instagram Threads') return '@username';
+                                      return '@username';
+                                    })()}
+                                    className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-text-secondary mb-1">
+                                  New Percentage
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={split.percentage}
+                                  onChange={(e) => {
+                                    const newSplits = [...listingData.newFeeSplits];
+                                    newSplits[index].percentage = parseInt(e.target.value) || 0;
+                                    setListingData({...listingData, newFeeSplits: newSplits});
+                                  }}
+                                  className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-text-secondary mb-1">
+                                  Time Lock (days)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={split.timeLock}
+                                  onChange={(e) => {
+                                    const newSplits = [...listingData.newFeeSplits];
+                                    newSplits[index].timeLock = parseInt(e.target.value) || 0;
+                                    setListingData({...listingData, newFeeSplits: newSplits});
+                                  }}
+                                  placeholder="0 = no lock"
+                                  className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                                />
+                              </div>
                             </div>
                           </div>
                         )}
                       </div>
                     ))}
+                  </div>
+
+                  {/* Add New Recipient Button */}
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newSplit = {
+                          id: Date.now().toString(),
+                          label: '',
+                          percentage: 0,
+                          timeLock: 0,
+                          isRemoved: false,
+                          type: 'wallet' as 'wallet' | 'social',
+                          social_or_wallet: ''
+                        };
+                        setListingData(prev => ({
+                          ...prev,
+                          newFeeSplits: [...prev.newFeeSplits, newSplit]
+                        }));
+                      }}
+                      className="w-full py-3 border-2 border-dashed border-background-elevated rounded-lg text-text-secondary hover:text-text-primary hover:border-primary-mint transition-colors flex items-center justify-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add New Recipient</span>
+                    </button>
                   </div>
 
                   {/* Total Percentage Display */}

@@ -68,6 +68,43 @@ export const getProfile = async (walletAddress: string): Promise<Profile | null>
   }
 };
 
+export const getOrCreateProfile = async (walletAddress: string): Promise<Profile | null> => {
+  if (!supabase) {
+    console.error('Supabase client not initialized');
+    return null;
+  }
+
+  try {
+    // First try to get existing profile
+    const existingProfile = await getProfile(walletAddress);
+    if (existingProfile) {
+      return existingProfile;
+    }
+
+    // If no profile exists, create one automatically
+    console.log('No profile found for wallet, creating one automatically...');
+    const newProfile = await createProfile({
+      wallet_address: walletAddress,
+      username: null,
+      bio: null,
+      profile_image_url: null,
+      social_links: [],
+      oauth_verifications: {}
+    });
+
+    if (newProfile) {
+      console.log('Profile created successfully:', newProfile);
+      return newProfile;
+    } else {
+      console.error('Failed to create profile');
+      return null;
+    }
+  } catch (error) {
+    console.error('Unexpected error in getOrCreateProfile:', error);
+    return null;
+  }
+};
+
 export const createProfile = async (profile: Omit<Profile, 'id' | 'created_at' | 'updated_at'>): Promise<Profile | null> => {
   if (!supabase) {
     console.error('Supabase client not initialized');
