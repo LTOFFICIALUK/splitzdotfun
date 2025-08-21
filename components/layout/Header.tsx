@@ -79,7 +79,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             </div>
 
             {/* Desktop Navigation - Centered on screen */}
-            <nav className="hidden lg:flex items-center space-x-6 absolute left-1/2 transform -translate-x-1/2">
+            <nav className="hidden xl:flex items-center space-x-6 absolute left-1/2 transform -translate-x-1/2">
               {navLinks.map((link) => (
                 <NavLink
                   key={link.href}
@@ -92,7 +92,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             </nav>
 
             {/* Desktop Actions */}
-            <div className="hidden lg:flex items-center space-x-3 flex-shrink-0">
+            <div className="hidden xl:flex items-center space-x-3 flex-shrink-0">
               <button
                 onClick={() => setIsSearchOpen(true)}
                 className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
@@ -112,7 +112,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             </div>
 
             {/* Medium screen actions (tablet) */}
-            <div className="hidden md:flex lg:hidden items-center space-x-2 flex-shrink-0">
+            <div className="hidden md:flex xl:hidden items-center space-x-2 flex-shrink-0">
               <button
                 onClick={() => setIsSearchOpen(true)}
                 className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
