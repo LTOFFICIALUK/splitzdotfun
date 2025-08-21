@@ -23,9 +23,9 @@ const TrendingTokens: React.FC = () => {
   // Helper function to format holder count (whole numbers)
   const formatHolderCount = (num: number): string => {
     if (num >= 1000000) {
-      return `${Math.round(num / 1000000)}M`;
+      return `${(num / 1000000).toFixed(1)}M`;
     } else if (num >= 1000) {
-      return `${Math.round(num / 1000)}k`;
+      return `${(num / 1000).toFixed(1)}k`;
     } else {
       return Math.round(num).toString();
     }
