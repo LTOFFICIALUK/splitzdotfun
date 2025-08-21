@@ -7,6 +7,7 @@ export interface Token {
   mcap: number;
   change24h: number;
   creatorRewardsSOL: number;
+  holder_count?: number;
 }
 
 export interface LeaderboardEntry {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TokenCard from '../ui/TokenCard';
 import Button from '../ui/Button';
-import { TrendingUp, Zap, ArrowRight, Loader2 } from 'lucide-react';
+import { TrendingUp, Zap, ArrowRight, Loader2, Users } from 'lucide-react';
 import { Token } from '@/types';
 
 const TrendingTokens: React.FC = () => {
@@ -17,6 +17,17 @@ const TrendingTokens: React.FC = () => {
       return `${(num / 1000).toFixed(1)}k`;
     } else {
       return num.toFixed(1);
+    }
+  };
+
+  // Helper function to format holder count (whole numbers)
+  const formatHolderCount = (num: number): string => {
+    if (num >= 1000000) {
+      return `${Math.round(num / 1000000)}M`;
+    } else if (num >= 1000) {
+      return `${Math.round(num / 1000)}k`;
+    } else {
+      return Math.round(num).toString();
     }
   };
 
@@ -120,9 +131,12 @@ const TrendingTokens: React.FC = () => {
                       </div>
                       
                       <div className="text-right flex-shrink-0">
-                        <p className="font-semibold text-text-primary">
-                          ${formatNumber(token.mcap)}
-                        </p>
+                        <div className="flex items-center justify-end space-x-1 mb-1">
+                          <Users className="w-4 h-4 text-text-secondary" />
+                          <p className="font-semibold text-text-primary">
+                            {formatHolderCount(token.holder_count || 0)}
+                          </p>
+                        </div>
                         <p className={`text-sm font-medium ${token.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {token.change24h >= 0 ? '+' : ''}{token.change24h.toFixed(1)}%
                         </p>
