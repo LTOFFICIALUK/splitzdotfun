@@ -29,9 +29,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Filter out removed recipients before storing
+    const activeFeeSplits = newFeeSplits.filter((split: any) => !split.isRemoved);
+    
     // Validate that total percentage equals 100%
-    const totalPercentage = newFeeSplits
-      .filter((split: any) => !split.isRemoved)
+    const totalPercentage = activeFeeSplits
       .reduce((sum: number, split: any) => sum + split.percentage, 0) + newOwnerFeeShare;
 
     if (totalPercentage !== 100) {
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
         listing_price: listingPrice,
         description: description || null,
         new_owner_fee_share: newOwnerFeeShare,
-        proposed_fee_splits: newFeeSplits,
+        proposed_fee_splits: activeFeeSplits, // Only store active (non-removed) splits
         is_active: true,
         is_sold: false
       })

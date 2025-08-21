@@ -416,17 +416,25 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
                   <button 
                     onClick={() => {
                       // Initialize listing data with current fee splits
-                      const currentSplits = tokenData.royaltyRecipients.map(recipient => ({
+                      // Only include current owner's share, mark the rest as "Buyer"
+                      const currentOwnerSplits = tokenData.royaltyRecipients.map(recipient => ({
                         id: recipient.id,
                         label: recipient.label,
                         percentage: recipient.percentage,
                         timeLock: 0, // Default no time lock
                         isRemoved: false
                       }));
+                      
+                      // Calculate the total percentage of current recipients
+                      const currentTotal = tokenData.royaltyRecipients.reduce((sum, recipient) => sum + recipient.percentage, 0);
+                      
+                      // The new owner gets the remaining percentage (100% - current total)
+                      const newOwnerShare = 100 - currentTotal;
+                      
                       setListingData({
                         price: '',
-                        newOwnerFeeShare: 0,
-                        newFeeSplits: currentSplits,
+                        newOwnerFeeShare: newOwnerShare,
+                        newFeeSplits: currentOwnerSplits,
                         description: ''
                       });
                       setShowListingModal(true);

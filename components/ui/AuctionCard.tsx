@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import Button from './Button';
 import { Gavel, User, Clock, Users } from 'lucide-react';
 
@@ -30,7 +31,7 @@ const AuctionCard: React.FC<AuctionCardProps> = ({
   };
 
   const handleViewAuction = () => {
-    alert(`Viewing auction details for ${auction.tokenName}... (This is a stub)`);
+    // Navigation is handled by Link component
   };
 
   const handleWatchAuction = () => {
@@ -117,14 +118,15 @@ const AuctionCard: React.FC<AuctionCardProps> = ({
         </Button>
         
         <div className="flex space-x-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleViewAuction}
-            className="flex-1"
-          >
-            View Auction
-          </Button>
+          <Link href={`/marketplace/${auction.tokenAddress}`} className="flex-1">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+            >
+              View Auction
+            </Button>
+          </Link>
           
           <Button
             variant="outline"
