@@ -436,9 +436,11 @@ export default function MarketplaceListingDetailPage() {
                   </div>
                 </div>
 
-                <p className="text-text-primary text-lg leading-relaxed">
-                  {listing.description}
-                </p>
+                {listing.description && (
+                  <p className="text-text-primary text-lg leading-relaxed">
+                    {listing.description}
+                  </p>
+                )}
                 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 pt-4 border-t border-background-elevated">
                   <div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
