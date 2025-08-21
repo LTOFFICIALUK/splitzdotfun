@@ -194,7 +194,7 @@ const Hero: React.FC<HeroProps> = ({
                 formatCurrency(royaltiesDistributed)
               )}
             </div>
-            <div className="text-text-secondary">Total Royalties Distributed</div>
+            <div className="text-text-secondary">Total Royalties Claimed</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-primary-aqua mb-2">
