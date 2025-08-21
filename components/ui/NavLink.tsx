@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { NavLinkProps } from '@/types';
 
 const NavLink: React.FC<NavLinkProps> = ({
@@ -6,22 +7,27 @@ const NavLink: React.FC<NavLinkProps> = ({
   children,
   isActive = false,
 }) => {
-  const baseClasses = 'px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-mint focus:ring-offset-2 focus:ring-offset-background-dark';
+  const baseClasses = 'px-3 py-2 font-medium transition-all duration-200 focus:outline-none focus:ring-0 focus:outline-0 relative';
   
   const activeClasses = isActive 
-    ? 'bg-background-elevated text-primary-mint border border-primary-mint/30' 
-    : 'text-text-secondary hover:text-text-primary hover:bg-background-elevated';
+    ? 'text-primary-mint' 
+    : 'text-text-secondary';
 
   return (
-    <a
+    <Link
       href={href}
       className={`${baseClasses} ${activeClasses}`}
       tabIndex={0}
       role="link"
       aria-current={isActive ? 'page' : undefined}
+      style={{ outline: 'none' }}
+      prefetch
     >
       {children}
-    </a>
+      {isActive && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary-mint to-primary-aqua rounded-full"></div>
+      )}
+    </Link>
   );
 };
 

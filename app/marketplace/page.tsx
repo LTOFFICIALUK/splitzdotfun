@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import MarketplaceFilters from '@/components/ui/MarketplaceFilters';
@@ -25,140 +25,113 @@ interface MarketplaceListing {
   imageUrl: string;
 }
 
+interface DatabaseListing {
+  id: string;
+  token_id: string;
+  seller_user_id: string;
+  listing_price: number;
+  description: string | null;
+  new_owner_fee_share: number;
+  proposed_fee_splits: any[];
+  is_active: boolean;
+  is_sold: boolean;
+  created_at: string;
+  tokens: {
+    id: string;
+    name: string;
+    symbol: string;
+    contract_address: string;
+    image_url: string | null;
+  };
+  profiles: {
+    id: string;
+    wallet_address: string;
+    username: string | null;
+  };
+}
+
 export default function MarketplacePage() {
   const [activeTab, setActiveTab] = useState<'listings' | 'auctions'>('listings');
   const [sortBy, setSortBy] = useState('newest');
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
+  const [auctions, setAuctions] = useState<MarketplaceListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock marketplace data
-  const marketplaceData: MarketplaceListing[] = [
-    {
-      id: '1',
-      type: 'listing',
-      tokenName: 'FROGZ',
-      tokenTicker: 'FROGZ',
-      tokenAddress: 'A1B2...C3D4',
-      ownershipPercentage: 15,
-      price: 25,
-      currency: 'SOL',
-      description: 'Selling 15% ownership of FROGZ token. This includes creator rights and royalty distribution.',
-      seller: '@memelord',
-      imageUrl: '/images/placeholder-token.png',
-    },
-    {
-      id: '2',
-      type: 'auction',
-      tokenName: 'PEPE',
-      tokenTicker: 'PEPE',
-      tokenAddress: 'E5F6...G7H8',
-      ownershipPercentage: 10,
-      price: 18.5,
-      currency: 'SOL',
-      description: 'Auctioning 10% ownership of PEPE token. Current highest bid: 18.5 SOL',
-      seller: '@cryptoking',
-      timeLeft: '2d 14h 32m',
-      bids: 12,
-      endTime: '2024-01-15T18:00:00Z',
-      imageUrl: '/images/placeholder-token.png',
-    },
-    {
-      id: '3',
-      type: 'listing',
-      tokenName: 'BONK',
-      tokenTicker: 'BONK',
-      tokenAddress: 'Q7R8...S9T0',
-      ownershipPercentage: 20,
-      price: 45,
-      currency: 'SOL',
-      description: 'Selling 20% ownership of BONK token. Includes management rights and revenue sharing.',
-      seller: '@solanaqueen',
-      imageUrl: '/images/placeholder-token.png',
-    },
-    {
-      id: '4',
-      type: 'auction',
-      tokenName: 'VIBE',
-      tokenTicker: 'VIBE',
-      tokenAddress: 'D3Tj...YrJh',
-      ownershipPercentage: 8,
-      price: 12.8,
-      currency: 'SOL',
-      description: 'Auctioning 8% ownership of VIBE token. Limited time opportunity!',
-      seller: '@tokenlord',
-      timeLeft: '1d 8h 15m',
-      bids: 8,
-      endTime: '2024-01-14T12:00:00Z',
-      imageUrl: '/images/placeholder-token.png',
-    },
-    {
-      id: '5',
-      type: 'listing',
-      tokenName: 'MOON',
-      tokenTicker: 'MOON',
-      tokenAddress: 'F7Kp...XqLm',
-      ownershipPercentage: 12,
-      price: 22,
-      currency: 'SOL',
-      description: 'Selling 12% ownership of MOON token. Great opportunity for long-term holders.',
-      seller: '@moonboy',
-      imageUrl: '/images/placeholder-token.png',
-    },
-    {
-      id: '6',
-      type: 'auction',
-      tokenName: 'ROCKET',
-      tokenTicker: 'ROCKET',
-      tokenAddress: 'G9H0...I1J2',
-      ownershipPercentage: 25,
-      price: 35,
-      currency: 'SOL',
-      description: 'Auctioning 25% ownership of ROCKET token. This is a significant stake!',
-      seller: '@rocketman',
-      timeLeft: '3d 6h 45m',
-      bids: 15,
-      endTime: '2024-01-16T20:00:00Z',
-      imageUrl: '/images/placeholder-token.png',
-    },
-  ];
+  useEffect(() => {
+    const fetchMarketplaceData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const listings = marketplaceData.filter(item => item.type === 'listing');
-  const auctions = marketplaceData.filter(item => 
-    item.type === 'auction' && 
-    item.timeLeft && 
-    item.bids !== undefined && 
-    item.endTime
-  ) as (MarketplaceListing & {
-    timeLeft: string;
-    bids: number;
-    endTime: string;
-  })[];
+        const response = await fetch('/api/marketplace/listings?activeOnly=true');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch marketplace data');
+        }
 
+        const result = await response.json();
+        
+        if (result.success) {
+          // Transform database listings to marketplace format
+          const transformedListings: MarketplaceListing[] = result.data.map((dbListing: DatabaseListing) => ({
+            id: dbListing.id,
+            type: 'listing' as const,
+            tokenName: dbListing.tokens.name || 'Unknown Token',
+            tokenTicker: dbListing.tokens.symbol || 'UNKNOWN',
+            tokenAddress: dbListing.tokens.contract_address,
+            ownershipPercentage: dbListing.new_owner_fee_share,
+            price: dbListing.listing_price,
+            currency: 'SOL' as const,
+            description: dbListing.description || 'No description provided',
+            seller: dbListing.profiles.username || dbListing.profiles.wallet_address.slice(0, 8) + '...',
+            imageUrl: dbListing.tokens.image_url || '/images/placeholder-token.png',
+          }));
+
+          setListings(transformedListings);
+          setAuctions([]); // No auctions for now, only listings
+        } else {
+          throw new Error(result.error || 'Failed to fetch marketplace data');
+        }
+      } catch (err) {
+        console.error('Error fetching marketplace data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch marketplace data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMarketplaceData();
+  }, []);
+
+  // Calculate stats from real data
   const stats = [
     {
       icon: <ShoppingCart className="w-6 h-6" />,
       label: 'Active Listings',
-      value: '247',
-      change: '+12',
+      value: listings.length.toString(),
+      change: '+0',
       changeType: 'positive' as const,
     },
     {
       icon: <Gavel className="w-6 h-6" />,
       label: 'Live Auctions',
-      value: '89',
-      change: '+5',
+      value: auctions.length.toString(),
+      change: '+0',
       changeType: 'positive' as const,
     },
     {
       icon: <TrendingUp className="w-6 h-6" />,
       label: 'Total Volume',
-      value: '1.2M SOL',
-      change: '+8.5%',
+      value: `${listings.reduce((sum, listing) => sum + listing.price, 0).toFixed(1)} SOL`,
+      change: '+0%',
       changeType: 'positive' as const,
     },
     {
       icon: <Clock className="w-6 h-6" />,
       label: 'Avg. Sale Time',
-      value: '2.4 days',
-      change: '-12%',
+      value: 'N/A',
+      change: '0%',
       changeType: 'positive' as const,
     },
   ];
@@ -248,23 +221,62 @@ export default function MarketplacePage() {
         {/* Marketplace Content */}
         <section className="py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {activeTab === 'listings' ? (
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-mint mx-auto mb-4"></div>
+                <p className="text-text-secondary">Loading marketplace data...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <h3 className="text-lg font-semibold text-text-primary mb-2">Error Loading Marketplace</h3>
+                <p className="text-text-secondary mb-4">{error}</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : activeTab === 'listings' ? (
               <div>
                 <h2 className="text-2xl font-bold text-text-primary mb-6">Fixed Price Listings</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {listings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} />
-                  ))}
-                </div>
+                {listings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-background-card rounded-full flex items-center justify-center mx-auto mb-4">
+                      <ShoppingCart className="w-8 h-8 text-text-secondary" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-text-primary mb-2">No Active Listings</h3>
+                    <p className="text-text-secondary">There are currently no active marketplace listings.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {listings.map((listing) => (
+                      <ListingCard key={listing.id} listing={listing} />
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div>
                 <h2 className="text-2xl font-bold text-text-primary mb-6">Live Auctions</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {auctions.map((auction) => (
-                    <AuctionCard key={auction.id} auction={auction} />
-                  ))}
-                </div>
+                {auctions.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-background-card rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Gavel className="w-8 h-8 text-text-secondary" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-text-primary mb-2">No Live Auctions</h3>
+                    <p className="text-text-secondary">There are currently no active auctions.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {auctions.map((auction) => (
+                      <AuctionCard key={auction.id} auction={auction} />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Wallet, Loader2, LogOut, ChevronDown, User, FolderOpen } from 'lucide-react';
 import { useWallet } from './WalletProvider';
 import Modal from './Modal';
@@ -17,18 +18,16 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
   size = 'md',
 }) => {
   const { publicKey, isConnected, isConnecting, connect, disconnect } = useWallet();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [isErrorVisible, setIsErrorVisible] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Prevent hydration mismatch by only rendering after mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Note: We intentionally avoid local mounted gating here to prevent
+  // flicker of the wallet button state during client-side navigations.
 
   // Auto-dismiss error after 3 seconds with fade animation
   useEffect(() => {
@@ -79,12 +78,12 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
 
   const handleViewProjects = () => {
     setShowDropdown(false);
-    window.location.href = '/projects';
+    router.push('/projects');
   };
 
   const handleProfile = () => {
     setShowDropdown(false);
-    window.location.href = '/profile';
+    router.push('/profile');
   };
 
   const handleDisconnectClick = () => {
@@ -128,16 +127,6 @@ const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     if (address.length <= 12) return address;
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
-
-  // Show loading state while mounting to prevent hydration mismatch
-  if (!mounted) {
-    return (
-      <button className={getButtonClasses()} disabled>
-        <Wallet className="w-4 h-4" />
-        <span>Connect Wallet</span>
-      </button>
-    );
-  }
 
   if (isConnecting || showConnectModal) {
     return (

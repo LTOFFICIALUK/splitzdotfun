@@ -207,7 +207,7 @@ const ProjectsPage: React.FC = () => {
               {currentTokens.map((token) => (
                 <a
                   key={token.id}
-                  href={`/token/${token.contract_address}`}
+                  href={`/token/${token.contract_address}/manage`}
                   className="block bg-background-card rounded-lg border border-background-elevated p-4 hover:border-primary-mint/30 hover:bg-background-elevated transition-all duration-200 cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
@@ -218,17 +218,23 @@ const ProjectsPage: React.FC = () => {
                         alt={token.name}
                         className="w-8 h-8 rounded-lg object-cover"
                       />
-                      <div>
-                        <h3 className="font-semibold text-text-primary">{token.name}</h3>
-                        <p className="text-text-secondary text-xs font-mono">{token.contract_address.slice(0, 4)}...{token.contract_address.slice(-4)}</p>
-                      </div>
+                                              <div>
+                          <h3 className="font-semibold text-text-primary">
+                            <span className="font-bold text-white">${token.symbol}</span>{' '}
+                            <span className="font-normal text-gray-400">{token.name}</span>
+                          </h3>
+                          <p className="text-text-secondary text-xs font-mono">{token.contract_address.slice(0, 4)}...{token.contract_address.slice(-4)}</p>
+                        </div>
                     </div>
                     
                     {/* Token Data */}
                     <div className="text-right">
-                      <p className="font-semibold text-text-primary">{token.symbol}</p>
-                      <p className="text-text-secondary text-xs">{formatDate(token.created_at)}</p>
-                      <p className="text-primary-mint text-xs font-medium">{formatFees(token.total_fees_earned)}</p>
+                      <p className="text-text-primary">
+                        <span className="font-bold">Role:</span> {token.royalty_earners.find(earner => earner.social_or_wallet === publicKey)?.role || 'Owner'}
+                      </p>
+                      <p className="text-primary-mint text-sm font-medium">
+                        <span className="font-bold">{token.total_fees_earned.toFixed(2)}</span> SOL Earned
+                      </p>
                     </div>
                   </div>
                 </a>
@@ -253,12 +259,30 @@ const ProjectsPage: React.FC = () => {
                   : 'You haven\'t deployed any tokens yet'
                 }
               </p>
-              <a
-                href="/create"
-                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark rounded-lg font-medium hover:opacity-90 transition-opacity"
-              >
-                Create Your First Token
-              </a>
+              
+              {activeTab === 'owned' ? (
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <a
+                    href="/marketplace"
+                    className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark rounded-lg font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Browse Marketplace
+                  </a>
+                  <a
+                    href="/create"
+                    className="inline-flex items-center px-6 py-3 bg-background-card border border-background-elevated text-text-primary rounded-lg font-medium hover:bg-background-elevated transition-colors"
+                  >
+                    Create Your Token
+                  </a>
+                </div>
+              ) : (
+                <a
+                  href="/create"
+                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark rounded-lg font-medium hover:opacity-90 transition-opacity"
+                >
+                  Create Your First Token
+                </a>
+              )}
             </div>
           )}
         </div>

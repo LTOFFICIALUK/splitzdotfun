@@ -136,3 +136,112 @@ BEGIN
       FOR DELETE USING (bucket_id = 'profile-images');
   END IF;
 END $$;
+
+-- Create royalty changes history table
+CREATE TABLE IF NOT EXISTS royalty_changes_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  token_id UUID NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+  previous_royalty_earners JSONB,
+  new_royalty_earners JSONB NOT NULL,
+  changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  changed_by_user_id UUID,
+  fees_at_change DECIMAL(20,8) DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add index for efficient queries
+CREATE INDEX IF NOT EXISTS idx_royalty_changes_token_id ON royalty_changes_history(token_id);
+CREATE INDEX IF NOT EXISTS idx_royalty_changes_changed_at ON royalty_changes_history(changed_at);
+
+-- Add comment
+COMMENT ON TABLE royalty_changes_history IS 'Tracks historical changes to royalty distributions for tokens';
+
+-- Create marketplace listings table
+CREATE TABLE IF NOT EXISTS marketplace_listings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  token_id UUID NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+  seller_user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  listing_price DECIMAL(20,8) NOT NULL,
+  description TEXT,
+  new_owner_fee_share DECIMAL(5,2) NOT NULL, -- Percentage for new owner (0-100)
+  proposed_fee_splits JSONB NOT NULL, -- Array of fee split objects with time locks
+  is_active BOOLEAN DEFAULT true,
+  is_sold BOOLEAN DEFAULT false,
+  buyer_user_id UUID REFERENCES profiles(id), -- Set when sold
+  sold_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add indexes for efficient queries
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_token_id ON marketplace_listings(token_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_seller ON marketplace_listings(seller_user_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_buyer ON marketplace_listings(buyer_user_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_active ON marketplace_listings(is_active);
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_sold ON marketplace_listings(is_sold);
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_created_at ON marketplace_listings(created_at);
+
+-- Add updated_at trigger for marketplace_listings
+CREATE TRIGGER update_marketplace_listings_updated_at 
+  BEFORE UPDATE ON marketplace_listings 
+  FOR EACH ROW 
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Add comment
+COMMENT ON TABLE marketplace_listings IS 'Stores marketplace listings for token management transfers';
+
+-- Add is_listed column to tokens table
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS is_listed BOOLEAN DEFAULT false;
+
+-- Add index for efficient queries on is_listed
+CREATE INDEX IF NOT EXISTS idx_tokens_is_listed ON tokens(is_listed);
+
+-- Add comment for the new column
+COMMENT ON COLUMN tokens.is_listed IS 'Indicates if the token has an active marketplace listing';
+
+-- Enable RLS for marketplace_listings
+ALTER TABLE marketplace_listings ENABLE ROW LEVEL SECURITY;
+
+-- Add RLS policies for marketplace_listings
+DO $$
+BEGIN
+  -- Public read access for active listings
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'marketplace_listings' AND policyname = 'Public read active listings'
+  ) THEN
+    CREATE POLICY "Public read active listings" ON marketplace_listings
+      FOR SELECT USING (is_active = true);
+  END IF;
+
+  -- Users can read their own listings (active or not)
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'marketplace_listings' AND policyname = 'Users can read own listings'
+  ) THEN
+    CREATE POLICY "Users can read own listings" ON marketplace_listings
+      FOR SELECT USING (seller_user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
+  END IF;
+
+  -- Users can insert their own listings
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'marketplace_listings' AND policyname = 'Users can insert own listings'
+  ) THEN
+    CREATE POLICY "Users can insert own listings" ON marketplace_listings
+      FOR INSERT WITH CHECK (seller_user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
+  END IF;
+
+  -- Users can update their own listings
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'marketplace_listings' AND policyname = 'Users can update own listings'
+  ) THEN
+    CREATE POLICY "Users can update own listings" ON marketplace_listings
+      FOR UPDATE USING (seller_user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
+  END IF;
+
+  -- Users can delete their own listings
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'marketplace_listings' AND policyname = 'Users can delete own listings'
+  ) THEN
+    CREATE POLICY "Users can delete own listings" ON marketplace_listings
+      FOR DELETE USING (seller_user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
+  END IF;
+END $$;

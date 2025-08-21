@@ -72,9 +72,17 @@ body {
 }
 
 /* Focus styles for accessibility */
-*:focus {
+/* Restrict outlines to form controls; do not show outlines on links */
+button:focus,
+input:focus,
+textarea:focus,
+select:focus {
   outline: 2px solid var(--primary-mint);
   outline-offset: 2px;
+}
+
+a:focus {
+  outline: none !important;
 }
 
 /* Custom animations */

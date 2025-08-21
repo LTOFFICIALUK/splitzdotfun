@@ -154,6 +154,51 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           const ownership = item;
           const token = item.tokens;
           
+          // Parse royalty_earners from JSON string
+          let royaltyEarners = [];
+          if (ownership.royalty_earners) {
+            try {
+              if (typeof ownership.royalty_earners === 'string') {
+                royaltyEarners = JSON.parse(ownership.royalty_earners);
+              } else if (Array.isArray(ownership.royalty_earners)) {
+                royaltyEarners = ownership.royalty_earners;
+              }
+            } catch (e) {
+              console.error('Error parsing royalty_earners:', e);
+              royaltyEarners = [];
+            }
+          }
+
+          // Parse fees_owed_per_earner from JSON string
+          let feesOwedPerEarner = {};
+          if (ownership.fees_owed_per_earner) {
+            try {
+              if (typeof ownership.fees_owed_per_earner === 'string') {
+                feesOwedPerEarner = JSON.parse(ownership.fees_owed_per_earner);
+              } else if (typeof ownership.fees_owed_per_earner === 'object') {
+                feesOwedPerEarner = ownership.fees_owed_per_earner;
+              }
+            } catch (e) {
+              console.error('Error parsing fees_owed_per_earner:', e);
+              feesOwedPerEarner = {};
+            }
+          }
+
+          // Parse fees_claimed_per_earner from JSON string
+          let feesClaimedPerEarner = {};
+          if (ownership.fees_claimed_per_earner) {
+            try {
+              if (typeof ownership.fees_claimed_per_earner === 'string') {
+                feesClaimedPerEarner = JSON.parse(ownership.fees_claimed_per_earner);
+              } else if (typeof ownership.fees_claimed_per_earner === 'object') {
+                feesClaimedPerEarner = ownership.fees_claimed_per_earner;
+              }
+            } catch (e) {
+              console.error('Error parsing fees_claimed_per_earner:', e);
+              feesClaimedPerEarner = {};
+            }
+          }
+
           return {
             id: token.id,
             name: token.name,
@@ -164,10 +209,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             created_at: token.created_at,
             fees_generated: token.fees_generated || 0,
             current_owner: ownership.current_owner,
-            royalty_earners: ownership.royalty_earners || [],
+            royalty_earners: royaltyEarners,
             total_fees_earned: ownership.total_fees_earned || 0,
-            fees_owed_per_earner: ownership.fees_owed_per_earner || {},
-            fees_claimed_per_earner: ownership.fees_claimed_per_earner || {},
+            fees_owed_per_earner: feesOwedPerEarner,
+            fees_claimed_per_earner: feesClaimedPerEarner,
             total_fees_claimed: ownership.total_fees_claimed || 0,
             type
           };

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Menu, X, Search, Wallet, Plus } from 'lucide-react';
 import NavLink from '../ui/NavLink';
 import SearchBar from '../ui/SearchBar';
@@ -61,12 +62,20 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex-shrink-0">
-              <a href="/" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-primary-mint to-primary-aqua rounded-lg flex items-center justify-center">
-                  <span className="text-background-dark font-bold text-sm">S</span>
-                </div>
-                <span className="text-xl font-bold text-text-primary">SplitzFun</span>
-              </a>
+              <Link href="/" className="flex items-center" style={{ outline: 'none' }}>
+                {/* Mobile: Circle logo */}
+                <img 
+                  src="/circle-logo.png" 
+                  alt="SplitzFun" 
+                  className="w-8 h-8 md:hidden"
+                />
+                {/* Desktop: Long logo */}
+                <img 
+                  src="/long-logo.png" 
+                  alt="SplitzFun" 
+                  className="hidden md:block h-8"
+                />
+              </Link>
             </div>
 
             {/* Desktop Navigation */}
@@ -91,13 +100,14 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               >
                 <Search className="w-4 h-4" />
               </button>
-              <a
+              <Link
                 href="/create"
-                className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none"
+                style={{ outline: 'none' }}
               >
                 <Plus className="w-4 h-4 inline mr-2" />
                 Create coin
-              </a>
+              </Link>
               <ConnectWalletButton variant="secondary" size="md" />
             </div>
 
@@ -118,7 +128,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
             <div className="md:hidden py-4 border-t border-background-elevated">
               <div className="space-y-4">
                 {navLinks.map((link) => (
-                  <a
+                  <Link
                     key={link.href}
                     href={link.href}
                     className={`block text-sm font-medium transition-colors duration-200 ${
@@ -127,18 +137,20 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
                         : 'text-text-secondary hover:text-text-primary'
                     }`}
                     onClick={() => setIsMenuOpen(false)}
+                    style={{ outline: 'none' }}
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 ))}
                 <div className="pt-4 space-y-3">
-                  <a
+                  <Link
                     href="/create"
-                    className="w-full bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-mint text-center block"
+                    className="w-full bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none text-center block"
                     onClick={() => setIsMenuOpen(false)}
+                    style={{ outline: 'none' }}
                   >
                     Create coin
-                  </a>
+                  </Link>
                   <ConnectWalletButton variant="secondary" size="md" className="w-full" />
                 </div>
               </div>
