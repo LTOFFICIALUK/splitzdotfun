@@ -409,7 +409,7 @@ export default function MarketplaceListingDetailPage() {
             <div className="xl:col-span-3">
               {/* Token Header */}
               <div className="bg-background-card rounded-2xl border border-background-elevated p-6 mb-6">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6">
+                <div className="flex items-start justify-between mb-6">
                   <div className="flex items-center space-x-4 min-w-0 flex-1">
                     <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center flex-shrink-0">
                       <span className="text-background-dark font-bold text-2xl">{listing.tokenTicker.charAt(0)}</span>
