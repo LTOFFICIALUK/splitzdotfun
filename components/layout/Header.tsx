@@ -7,6 +7,7 @@ import NavLink from '../ui/NavLink';
 import SearchBar from '../ui/SearchBar';
 import Modal from '../ui/Modal';
 import ConnectWalletButton from '../ui/ConnectWalletButton';
+import { useWallet } from '../ui/WalletProvider';
 
 interface HeaderProps {
   currentPath: string;
@@ -16,6 +17,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const { publicKey, isConnected } = useWallet();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -43,6 +45,11 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
   const handleSearch = (query: string) => {
     alert(`Search query: ${query} (This is a stub)`);
     setIsSearchOpen(false);
+  };
+
+  const formatWalletAddress = (address: string) => {
+    if (address.length <= 12) return address;
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
 
   const navLinks = [
@@ -162,16 +169,30 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
                     {link.label}
                   </Link>
                 ))}
+                
+                {/* Wallet Address Display */}
+                {isConnected && publicKey && (
+                  <div className="pt-2 pb-2">
+                    <div className="text-xs text-text-secondary font-medium">
+                      Connected Wallet
+                    </div>
+                    <div className="text-sm text-text-primary font-mono">
+                      {formatWalletAddress(publicKey)}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="pt-4 space-y-3">
                   <Link
                     href="/create"
-                    className="w-full bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none text-center block"
+                    className="w-full h-12 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none text-center flex items-center justify-center"
                     onClick={() => setIsMenuOpen(false)}
                     style={{ outline: 'none' }}
                   >
+                    <Plus className="w-4 h-4 mr-2" />
                     Create coin
                   </Link>
-                  <ConnectWalletButton variant="secondary" size="md" className="w-full" />
+                  <ConnectWalletButton variant="secondary" size="md" className="w-full h-12" />
                 </div>
               </div>
             </div>

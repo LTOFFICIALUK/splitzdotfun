@@ -9,7 +9,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
   action,
 }) => {
   return (
-    <div className="bg-background-card rounded-2xl border border-background-elevated p-6 hover:border-primary-mint/30 transition-all duration-200 group">
+    <div className="bg-background-dark rounded-2xl border border-background-elevated p-6 hover:border-primary-mint/30 transition-all duration-200 group">
       <div className="flex flex-col h-full">
         {/* Icon */}
         <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200">

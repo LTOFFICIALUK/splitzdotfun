@@ -5,7 +5,6 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Hero from '@/components/sections/Hero';
 import ExplainerTiles from '@/components/sections/ExplainerTiles';
-import MyTokens from '@/components/sections/MyTokens';
 import TrendingTokens from '@/components/sections/TrendingTokens';
 import LeaderboardStrip from '@/components/sections/LeaderboardStrip';
 import HowItWorks from '@/components/sections/HowItWorks';
@@ -36,9 +35,6 @@ export default function Home() {
 
         {/* Explainer Tiles */}
         <ExplainerTiles />
-
-        {/* My Tokens */}
-        <MyTokens />
 
         {/* Trending Tokens */}
         <TrendingTokens />

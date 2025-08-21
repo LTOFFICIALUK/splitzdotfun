@@ -12,7 +12,7 @@ const ExplainerTiles: React.FC = () => {
     {
       icon: <Share2 className="w-6 h-6" />,
       title: 'Royalty Router',
-      body: 'Route attention into royalties. Automatically distribute earnings to creators, influencers, and community members based on engagement.',
+      body: 'Route attention into royalties. Automatically distribute earnings to creators, influencers, and community members based.',
       action: {
         label: 'Learn more',
         onClick: () => alert('Royalty Router details coming soon!'),
@@ -39,7 +39,7 @@ const ExplainerTiles: React.FC = () => {
     {
       icon: <Lightbulb className="w-6 h-6" />,
       title: 'Community Nominations',
-      body: 'Holders suggest new royalty earners with evidence. Community-driven growth through transparent nomination and voting.',
+      body: 'Holders suggest new royalty earners with evidence. Community-driven growth through transparent nominations.',
       action: {
         label: 'Learn more',
         onClick: () => alert('Community Nominations details coming soon!'),
@@ -48,7 +48,7 @@ const ExplainerTiles: React.FC = () => {
   ];
 
   return (
-    <section className="py-20 bg-background-dark">
+    <section className="py-20 bg-background-card">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-16">
