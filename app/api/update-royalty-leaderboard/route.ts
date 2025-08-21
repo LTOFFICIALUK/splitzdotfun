@@ -163,12 +163,14 @@ async function calculateLeaderboardForPeriod(timePeriod: string) {
     stats.tokenEarnings.set(payout.token_id, currentTokenEarnings + amount);
     
     // Track payout details
+    // Handle token data - it might be an array from the join
+    const tokenData = Array.isArray(payout.token) ? payout.token[0] : payout.token;
     stats.payouts.push({
       amount,
       claimed_at: payout.claimed_at,
       token_id: payout.token_id,
-      token_name: payout.token?.name || 'Unknown',
-      token_symbol: payout.token?.symbol || 'Unknown'
+      token_name: tokenData?.name || 'Unknown',
+      token_symbol: tokenData?.symbol || 'Unknown'
     });
   }
 
