@@ -17,7 +17,7 @@ interface MarketplaceListing {
   ownershipPercentage: number;
   price: number;
   currency: 'SOL' | 'USD';
-  description: string;
+  description: string | null;
   seller: string;
   imageUrl: string;
 }
@@ -100,7 +100,7 @@ export default function MarketplacePage() {
             ownershipPercentage: dbListing.new_owner_fee_share,
             price: dbListing.listing_price,
             currency: 'SOL' as const,
-            description: dbListing.description || 'No description provided',
+            description: dbListing.description || null,
             seller: dbListing.profiles.username || dbListing.profiles.wallet_address.slice(0, 8) + '...',
             imageUrl: dbListing.tokens.image_url || '/images/placeholder-token.png',
           }));
