@@ -1,63 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import TokenCard from '../ui/TokenCard';
 import Button from '../ui/Button';
-import { TrendingUp, Zap, ArrowRight } from 'lucide-react';
+import { TrendingUp, Zap, ArrowRight, Loader2 } from 'lucide-react';
 import { Token } from '@/types';
 
 const TrendingTokens: React.FC = () => {
-  // Mock trending tokens data
-  const trendingTokens: Token[] = [
-    {
-      id: 'frogz-1',
-      name: 'FROGZ',
-      ticker: 'FROGZ',
-      address: 'A1B2...C3D4',
-      logoUrl: '/images/placeholder-token.png',
-      mcap: 8500000,
-      change24h: 45.2,
-      creatorRewardsSOL: 0.0,
-    },
-    {
-      id: 'pepe-1',
-      name: 'PEPE',
-      ticker: 'PEPE',
-      address: 'E5F6...G7H8',
-      logoUrl: '/images/placeholder-token.png',
-      mcap: 3200000,
-      change24h: 23.8,
-      creatorRewardsSOL: 0.0,
-    },
-    {
-      id: 'doge-1',
-      name: 'DOGE',
-      ticker: 'DOGE',
-      address: 'I9J0...K1L2',
-      logoUrl: '/images/placeholder-token.png',
-      mcap: 15000000,
-      change24h: 12.4,
-      creatorRewardsSOL: 0.0,
-    },
-    {
-      id: 'shib-1',
-      name: 'SHIB',
-      ticker: 'SHIB',
-      address: 'M3N4...O5P6',
-      logoUrl: '/images/placeholder-token.png',
-      mcap: 6800000,
-      change24h: -8.7,
-      creatorRewardsSOL: 0.0,
-    },
-    {
-      id: 'bonk-1',
-      name: 'BONK',
-      ticker: 'BONK',
-      address: 'Q7R8...S9T0',
-      logoUrl: '/images/placeholder-token.png',
-      mcap: 4200000,
-      change24h: 67.3,
-      creatorRewardsSOL: 0.0,
-    },
-  ];
+  const [trendingTokens, setTrendingTokens] = useState<Token[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTrendingTokens = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/trending-tokens?limit=5');
+        const data = await response.json();
+        
+        if (data.success) {
+          setTrendingTokens(data.data);
+        } else {
+          setError('Failed to fetch trending tokens');
+        }
+      } catch (err) {
+        setError('Error loading trending tokens');
+        console.error('Error fetching trending tokens:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrendingTokens();
+  }, []);
 
   const handleBoost = (tokenId: string) => {
     alert(`Boosting ${tokenId}... (This is a stub)`);
@@ -99,8 +72,22 @@ const TrendingTokens: React.FC = () => {
 
         {/* Horizontal Scrolling Cards */}
         <div className="relative">
-          <div className="flex space-x-6 overflow-x-auto pb-4 scrollbar-hide">
-            {trendingTokens.map((token) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-mint" />
+              <span className="ml-3 text-text-secondary">Loading trending tokens...</span>
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center py-12">
+              <span className="text-red-400">{error}</span>
+            </div>
+          ) : trendingTokens.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <span className="text-text-secondary">No trending tokens available</span>
+            </div>
+          ) : (
+            <div className="flex space-x-6 overflow-x-auto pb-4 scrollbar-hide">
+              {trendingTokens.map((token) => (
               <div key={token.id} className="flex-shrink-0 w-80">
                 <div className="bg-background-card rounded-2xl border border-background-elevated p-6 hover:border-primary-mint/30 transition-all duration-200">
                   {/* Token Header */}
@@ -154,7 +141,8 @@ const TrendingTokens: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          )}
           
           {/* Gradient Fade Edges */}
           <div className="absolute left-0 top-0 bottom-4 w-8 bg-gradient-to-r from-background-dark to-transparent pointer-events-none"></div>
