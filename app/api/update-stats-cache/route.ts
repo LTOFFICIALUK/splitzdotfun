@@ -200,6 +200,93 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // 10. Update Total Royalties Earned (from token_ownership)
+    try {
+      const { data: earnedData, error: earnedError } = await supabase
+        .from('token_ownership')
+        .select('total_fees_earned');
+
+      if (earnedError) throw earnedError;
+
+      const totalEarned = earnedData?.reduce((sum, ownership) => sum + (ownership.total_fees_earned || 0), 0) || 0;
+      
+      await updateStat('total_royalties_earned', totalEarned, formatCurrency(totalEarned));
+      results.push({ stat: 'total_royalties_earned', success: true, value: totalEarned });
+    } catch (error) {
+      console.error('❌ Error updating total royalties earned:', error);
+      results.push({ stat: 'total_royalties_earned', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+
+    // 11. Update Total Royalties Distributed (from royalty_payouts)
+    try {
+      const { data: distributedData, error: distributedError } = await supabase
+        .from('royalty_payouts')
+        .select('payout_amount_usd')
+        .eq('transaction_status', 'confirmed')
+        .not('payout_amount_usd', 'is', null);
+
+      if (distributedError) throw distributedError;
+
+      const totalDistributed = distributedData?.reduce((sum, payout) => sum + (payout.payout_amount_usd || 0), 0) || 0;
+      
+      await updateStat('total_royalties_distributed', totalDistributed, formatCurrency(totalDistributed));
+      results.push({ stat: 'total_royalties_distributed', success: true, value: totalDistributed });
+    } catch (error) {
+      console.error('❌ Error updating total royalties distributed:', error);
+      results.push({ stat: 'total_royalties_distributed', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+
+    // 12. Update Total Earners
+    try {
+      const { data: earnersData, error: earnersError } = await supabase
+        .from('royalty_payouts')
+        .select('royalty_earner_social_or_wallet')
+        .eq('transaction_status', 'confirmed');
+
+      if (earnersError) throw earnersError;
+
+      // Count unique earners
+      const uniqueEarners = new Set(earnersData?.map(payout => payout.royalty_earner_social_or_wallet) || []);
+      const totalEarners = uniqueEarners.size;
+      
+      await updateStat('total_earners', totalEarners, totalEarners.toString());
+      results.push({ stat: 'total_earners', success: true, value: totalEarners });
+    } catch (error) {
+      console.error('❌ Error updating total earners:', error);
+      results.push({ stat: 'total_earners', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+
+    // 13. Update Top Earner
+    try {
+      const { data: topEarnerData, error: topEarnerError } = await supabase
+        .from('royalty_payouts')
+        .select('royalty_earner_social_or_wallet, payout_amount_usd')
+        .eq('transaction_status', 'confirmed')
+        .not('payout_amount_usd', 'is', null);
+
+      if (topEarnerError) throw topEarnerError;
+
+      // Group by earner and sum earnings
+      const earnerTotals = new Map<string, number>();
+      topEarnerData?.forEach(payout => {
+        const earner = payout.royalty_earner_social_or_wallet;
+        const current = earnerTotals.get(earner) || 0;
+        earnerTotals.set(earner, current + (payout.payout_amount_usd || 0));
+      });
+
+      const topEarner = Array.from(earnerTotals.entries())
+        .sort(([,a], [,b]) => b - a)[0];
+
+      const topEarnerValue = topEarner ? topEarner[1] : 0;
+      const topEarnerName = topEarner ? topEarner[0] : 'None';
+      
+      await updateStat('top_earner', topEarnerValue, topEarnerName);
+      results.push({ stat: 'top_earner', success: true, value: topEarnerName });
+    } catch (error) {
+      console.error('❌ Error updating top earner:', error);
+      results.push({ stat: 'top_earner', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+
     console.log('✅ Stats cache updated successfully');
 
     return NextResponse.json({

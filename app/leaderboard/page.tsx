@@ -10,6 +10,36 @@ import { Trophy, TrendingUp, Users, DollarSign, Share2, Lightbulb, Users2 } from
 
 export default function LeaderboardPage() {
   const [timePeriod, setTimePeriod] = useState<'24h' | '7d' | '30d' | 'all_time'>('all_time');
+  const [stats, setStats] = useState([
+    {
+      icon: <Trophy className="w-6 h-6" />,
+      label: 'Total Royalties Earned',
+      value: '$0',
+      change: 'Loading...',
+      changeType: 'neutral' as const,
+    },
+    {
+      icon: <Trophy className="w-6 h-6" />,
+      label: 'Total Royalties Distributed',
+      value: '$0',
+      change: 'Loading...',
+      changeType: 'neutral' as const,
+    },
+    {
+      icon: <Users className="w-6 h-6" />,
+      label: 'Total Earners',
+      value: '0',
+      change: 'Loading...',
+      changeType: 'neutral' as const,
+    },
+    {
+      icon: <DollarSign className="w-6 h-6" />,
+      label: 'Top Earner',
+      value: 'None',
+      change: 'Loading...',
+      changeType: 'neutral' as const,
+    },
+  ]);
 
   // Helper function to format currency
   const formatCurrency = (amount: number): string => {
@@ -22,36 +52,53 @@ export default function LeaderboardPage() {
     }
   };
 
-  const stats = [
-    {
-      icon: <Trophy className="w-6 h-6" />,
-      label: 'Total Royalties Distributed',
-      value: '$2.4M',
-      change: '+12.5%',
-      changeType: 'positive' as const,
-    },
-    {
-      icon: <Users className="w-6 h-6" />,
-      label: 'Active Creators',
-      value: '1,247',
-      change: '+8.2%',
-      changeType: 'positive' as const,
-    },
-    {
-      icon: <TrendingUp className="w-6 h-6" />,
-      label: 'Average Earnings',
-      value: '1.8 SOL',
-      change: '+15.3%',
-      changeType: 'positive' as const,
-    },
-    {
-      icon: <DollarSign className="w-6 h-6" />,
-      label: 'Top Earner',
-      value: '3.42 SOL',
-      change: '@memelord',
-      changeType: 'neutral' as const,
-    },
-  ];
+  // Fetch cached stats
+  useEffect(() => {
+    const fetchCachedStats = async () => {
+      try {
+        const response = await fetch('/api/stats-cache?keys=total_royalties_earned,total_royalties_distributed,total_earners,top_earner');
+        const data = await response.json();
+        
+        if (data.success) {
+          const newStats = [
+            {
+              icon: <Trophy className="w-6 h-6" />,
+              label: 'Total Royalties Earned',
+              value: data.data.total_royalties_earned?.text || '$0',
+              change: 'All time',
+              changeType: 'positive' as const,
+            },
+            {
+              icon: <Trophy className="w-6 h-6" />,
+              label: 'Total Royalties Distributed',
+              value: data.data.total_royalties_distributed?.text || '$0',
+              change: 'All time',
+              changeType: 'positive' as const,
+            },
+            {
+              icon: <Users className="w-6 h-6" />,
+              label: 'Total Earners',
+              value: data.data.total_earners?.text || '0',
+              change: 'All time',
+              changeType: 'positive' as const,
+            },
+            {
+              icon: <DollarSign className="w-6 h-6" />,
+              label: 'Top Earner',
+              value: data.data.top_earner?.text || 'None',
+              change: 'All time',
+              changeType: 'neutral' as const,
+            },
+          ];
+          setStats(newStats);
+        }
+      } catch (error) {
+        console.error('Error fetching cached stats:', error);
+      }
+    };
+
+    fetchCachedStats();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background-dark">
