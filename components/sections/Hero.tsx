@@ -17,6 +17,8 @@ const Hero: React.FC<HeroProps> = ({
 }) => {
   const [royaltiesDistributed, setRoyaltiesDistributed] = useState<number>(0);
   const [isLoadingRoyalties, setIsLoadingRoyalties] = useState<boolean>(true);
+  const [tokenCount, setTokenCount] = useState<number>(0);
+  const [isLoadingTokens, setIsLoadingTokens] = useState<boolean>(true);
 
   // Helper function to format currency
   const formatCurrency = (amount: number): string => {
@@ -51,6 +53,30 @@ const Hero: React.FC<HeroProps> = ({
     };
 
     fetchRoyaltiesDistributed();
+  }, []);
+
+  // Fetch token count data
+  useEffect(() => {
+    const fetchTokenCount = async () => {
+      try {
+        const response = await fetch('/api/token-count');
+        const data = await response.json();
+        
+        if (data.success) {
+          setTokenCount(data.total_tokens);
+        } else {
+          console.error('Failed to fetch token count:', data.error);
+          setTokenCount(0);
+        }
+      } catch (error) {
+        console.error('Error fetching token count:', error);
+        setTokenCount(0);
+      } finally {
+        setIsLoadingTokens(false);
+      }
+    };
+
+    fetchTokenCount();
   }, []);
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -134,7 +160,13 @@ const Hero: React.FC<HeroProps> = ({
             <div className="text-text-secondary">Total Royalties Distributed</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-primary-aqua mb-2">1,247</div>
+            <div className="text-3xl font-bold text-primary-aqua mb-2">
+              {isLoadingTokens ? (
+                <Loader2 className="w-8 h-8 animate-spin mx-auto" />
+              ) : (
+                tokenCount.toLocaleString()
+              )}
+            </div>
             <div className="text-text-secondary">Tokens Launched</div>
           </div>
           <div className="text-center">
