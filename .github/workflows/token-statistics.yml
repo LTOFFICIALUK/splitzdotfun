@@ -1,4 +1,4 @@
-name: Update Token Statistics
+name: Update Token Statistics & Leaderboard
 
 on:
   schedule:
@@ -46,8 +46,33 @@ jobs:
           exit 1
         fi
       
+    - name: Update royalty leaderboard
+      run: |
+        echo "🏆 Starting royalty leaderboard update at $(date)"
+        
+        # Call the API endpoint to update leaderboard
+        response=$(curl -s -w "\n%{http_code}" -X POST https://splitz.fun/api/manual-update-leaderboard \
+          -H "Content-Type: application/json" \
+          -H "User-Agent: GitHub-Actions-Leaderboard-Update/1.0")
+        
+        # Extract response body and status code
+        http_code=$(echo "$response" | tail -n1)
+        response_body=$(echo "$response" | head -n -1)
+        
+        echo "📊 Response Status: $http_code"
+        echo "📋 Response Body: $response_body"
+        
+        # Check if the request was successful
+        if [ "$http_code" -eq 200 ]; then
+          echo "✅ Royalty leaderboard update completed successfully"
+        else
+          echo "❌ Royalty leaderboard update failed with status $http_code"
+          exit 1
+        fi
+      
     - name: Log completion
       run: |
-        echo "🎉 Token statistics update completed at $(date)"
-        echo "📈 Check results at: https://splitz.fun/api/token-statistics?limit=5"
+        echo "🎉 Token statistics and leaderboard update completed at $(date)"
+        echo "📈 Check token statistics at: https://splitz.fun/api/token-statistics?limit=5"
+        echo "🏆 Check leaderboard at: https://splitz.fun/api/royalty-leaderboard?period=all_time&limit=10"
         echo "📊 Check database at: https://splitz.fun/api/setup-token-statistics"
