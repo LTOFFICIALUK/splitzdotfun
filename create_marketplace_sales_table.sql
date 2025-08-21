@@ -3,7 +3,7 @@ CREATE TABLE marketplace_sales (
     id BIGSERIAL PRIMARY KEY,
     
     -- Token details
-    token_id BIGINT REFERENCES tokens(id) ON DELETE CASCADE,
+    token_id UUID REFERENCES tokens(id) ON DELETE CASCADE,
     token_name VARCHAR(255),
     token_symbol VARCHAR(50),
     contract_address VARCHAR(255),

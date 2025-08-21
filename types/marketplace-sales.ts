@@ -2,7 +2,7 @@ export interface MarketplaceSale {
   id: number;
   
   // Token details
-  token_id: number;
+  token_id: string; // UUID
   token_name: string;
   token_symbol: string;
   contract_address: string;
@@ -65,7 +65,7 @@ export interface RoyaltyEarner {
 }
 
 export interface CreateMarketplaceSaleData {
-  token_id: number;
+  token_id: string; // UUID
   token_name: string;
   token_symbol: string;
   contract_address: string;
@@ -115,7 +115,7 @@ export interface MarketplaceSaleStats {
 }
 
 export interface MarketplaceSaleFilters {
-  token_id?: number;
+  token_id?: string; // UUID
   seller_wallet?: string;
   buyer_wallet?: string;
   transaction_status?: 'confirmed' | 'pending' | 'failed';
