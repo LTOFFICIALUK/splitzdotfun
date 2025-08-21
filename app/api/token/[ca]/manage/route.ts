@@ -162,14 +162,14 @@ export async function GET(
               .eq('contract_address', contractAddress);
 
             // Calculate incremental fees for each current earner
-            const updatedFeesOwed = { ...feesOwedPerEarner };
+            const updatedFeesOwed: { [key: string]: string } = { ...feesOwedPerEarner };
             royaltyEarners.forEach((earner: any) => {
               const walletAddress = earner.social_or_wallet;
               const percentage = earner.percentage || 0;
               const incrementalEarned = incrementalFees * (percentage / 100);
               
               // Add to existing earnings
-              const existingEarned = parseFloat(feesOwedPerEarner[walletAddress] || '0');
+              const existingEarned = parseFloat((feesOwedPerEarner as { [key: string]: string })[walletAddress] || '0');
               const newTotal = existingEarned + incrementalEarned;
               updatedFeesOwed[walletAddress] = newTotal.toFixed(8);
               
@@ -219,21 +219,23 @@ export async function GET(
           let claimed = 0;
           
           // Get actual earned amount from fees_owed_per_earner (preserves historical earnings)
-          if (typeof feesOwedPerEarner === 'object' && feesOwedPerEarner[walletAddress]) {
-            earned = parseFloat(feesOwedPerEarner[walletAddress] || '0');
-          } else if (typeof feesOwedPerEarner === 'object' && feesOwedPerEarner.default) {
+          const feesOwedObj = feesOwedPerEarner as { [key: string]: string };
+          if (typeof feesOwedPerEarner === 'object' && feesOwedObj[walletAddress]) {
+            earned = parseFloat(feesOwedObj[walletAddress] || '0');
+          } else if (typeof feesOwedPerEarner === 'object' && feesOwedObj.default) {
             // If fees are stored as a single value, distribute equally or use the percentage
-            earned = parseFloat(feesOwedPerEarner.default || '0') * (earner.percentage / 100);
+            earned = parseFloat(feesOwedObj.default || '0') * (earner.percentage / 100);
           } else {
             // Fallback to 0 if no data available
             earned = 0;
           }
           
           // Handle claimed fees from existing data
-          if (typeof feesClaimedPerEarner === 'object' && feesClaimedPerEarner[walletAddress]) {
-            claimed = parseFloat(feesClaimedPerEarner[walletAddress] || '0');
-          } else if (typeof feesClaimedPerEarner === 'object' && feesClaimedPerEarner.default) {
-            claimed = parseFloat(feesClaimedPerEarner.default || '0') * (earner.percentage / 100);
+          const feesClaimedObj = feesClaimedPerEarner as { [key: string]: string };
+          if (typeof feesClaimedPerEarner === 'object' && feesClaimedObj[walletAddress]) {
+            claimed = parseFloat(feesClaimedObj[walletAddress] || '0');
+          } else if (typeof feesClaimedPerEarner === 'object' && feesClaimedObj.default) {
+            claimed = parseFloat(feesClaimedObj.default || '0') * (earner.percentage / 100);
           }
         
         return {
@@ -392,7 +394,7 @@ export async function PUT(
     // Calculate new fees owed per earner based on new royalty structure
     // For existing recipients: preserve their current earnings + add incremental based on new split
     // For new recipients: start with 0 + add incremental based on new split
-    const updatedFeesOwed = { ...currentFeesOwed };
+    const updatedFeesOwed: { [key: string]: string } = { ...currentFeesOwed };
     
     // Remove earnings for recipients no longer in the royalty structure
     const newWalletAddresses = newRoyaltyEarners.map((earner: any) => earner.social_or_wallet);

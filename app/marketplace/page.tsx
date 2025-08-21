@@ -19,10 +19,13 @@ interface MarketplaceListing {
   currency: 'SOL' | 'USD';
   description: string;
   seller: string;
-  timeLeft?: string;
-  bids?: number;
-  endTime?: string;
   imageUrl: string;
+}
+
+interface MarketplaceAuction extends MarketplaceListing {
+  timeLeft: string;
+  bids: number;
+  endTime: string;
 }
 
 interface DatabaseListing {
@@ -54,7 +57,7 @@ export default function MarketplacePage() {
   const [activeTab, setActiveTab] = useState<'listings' | 'auctions'>('listings');
   const [sortBy, setSortBy] = useState('newest');
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
-  const [auctions, setAuctions] = useState<MarketplaceListing[]>([]);
+  const [auctions, setAuctions] = useState<MarketplaceAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,7 +92,8 @@ export default function MarketplacePage() {
           }));
 
           setListings(transformedListings);
-          setAuctions([]); // No auctions for now, only listings
+          // No auctions for now, only listings - provide empty array with proper type
+          setAuctions([]);
         } else {
           throw new Error(result.error || 'Failed to fetch marketplace data');
         }
