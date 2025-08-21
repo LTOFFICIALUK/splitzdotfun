@@ -22,8 +22,8 @@ export const supabase = (() => {
 export interface Profile {
   id: string;
   wallet_address: string;
-  username: string;
-  bio: string;
+  username: string | null;
+  bio: string | null;
   profile_image_url: string | null;
   social_links: SocialLink[];
   oauth_verifications?: Record<string, {
