@@ -44,76 +44,72 @@ const Hero: React.FC<HeroProps> = ({
     }
   };
 
-  // Fetch royalties distributed data
+  // Fetch all stats from cache
   useEffect(() => {
-    const fetchRoyaltiesDistributed = async () => {
+    const fetchCachedStats = async () => {
       try {
-        const response = await fetch('/api/royalties-distributed');
+        const response = await fetch('/api/stats-cache?keys=total_royalties_claimed_usd,total_tokens_launched,total_active_holders');
         const data = await response.json();
         
         if (data.success) {
-          setRoyaltiesDistributed(data.total_distributed_usd);
+          // Set royalties distributed
+          if (data.data.total_royalties_claimed_usd) {
+            setRoyaltiesDistributed(data.data.total_royalties_claimed_usd.numeric || 0);
+          }
+          
+          // Set token count
+          if (data.data.total_tokens_launched) {
+            setTokenCount(data.data.total_tokens_launched.numeric || 0);
+          }
+          
+          // Set total holders
+          if (data.data.total_active_holders) {
+            setTotalHolders(data.data.total_active_holders.numeric || 0);
+          }
         } else {
-          console.error('Failed to fetch royalties distributed:', data.error);
-          setRoyaltiesDistributed(0);
+          console.error('Failed to fetch cached stats:', data.error);
+          // Fallback to individual API calls if cache fails
+          fetchFallbackStats();
         }
       } catch (error) {
-        console.error('Error fetching royalties distributed:', error);
-        setRoyaltiesDistributed(0);
+        console.error('Error fetching cached stats:', error);
+        // Fallback to individual API calls if cache fails
+        fetchFallbackStats();
       } finally {
         setIsLoadingRoyalties(false);
-      }
-    };
-
-    fetchRoyaltiesDistributed();
-  }, []);
-
-  // Fetch token count data
-  useEffect(() => {
-    const fetchTokenCount = async () => {
-      try {
-        const response = await fetch('/api/token-count');
-        const data = await response.json();
-        
-        if (data.success) {
-          setTokenCount(data.total_tokens);
-        } else {
-          console.error('Failed to fetch token count:', data.error);
-          setTokenCount(0);
-        }
-      } catch (error) {
-        console.error('Error fetching token count:', error);
-        setTokenCount(0);
-      } finally {
         setIsLoadingTokens(false);
-      }
-    };
-
-    fetchTokenCount();
-  }, []);
-
-  // Fetch total holders data
-  useEffect(() => {
-    const fetchTotalHolders = async () => {
-      try {
-        const response = await fetch('/api/total-holders');
-        const data = await response.json();
-        
-        if (data.success) {
-          setTotalHolders(data.total_holders);
-        } else {
-          console.error('Failed to fetch total holders:', data.error);
-          setTotalHolders(0);
-        }
-      } catch (error) {
-        console.error('Error fetching total holders:', error);
-        setTotalHolders(0);
-      } finally {
         setIsLoadingHolders(false);
       }
     };
 
-    fetchTotalHolders();
+    const fetchFallbackStats = async () => {
+      try {
+        // Fetch royalties distributed
+        const royaltiesResponse = await fetch('/api/royalties-distributed');
+        const royaltiesData = await royaltiesResponse.json();
+        if (royaltiesData.success) {
+          setRoyaltiesDistributed(royaltiesData.total_distributed_usd);
+        }
+
+        // Fetch token count
+        const tokenResponse = await fetch('/api/token-count');
+        const tokenData = await tokenResponse.json();
+        if (tokenData.success) {
+          setTokenCount(tokenData.total_tokens);
+        }
+
+        // Fetch total holders
+        const holdersResponse = await fetch('/api/total-holders');
+        const holdersData = await holdersResponse.json();
+        if (holdersData.success) {
+          setTotalHolders(holdersData.total_holders);
+        }
+      } catch (error) {
+        console.error('Error fetching fallback stats:', error);
+      }
+    };
+
+    fetchCachedStats();
   }, []);
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
