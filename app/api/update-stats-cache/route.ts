@@ -287,6 +287,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       results.push({ stat: 'top_earner', success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
 
+    // 14. Update Time-Period Specific Stats
+    const timePeriods = ['24h', '7d', '30d', 'all_time'];
+    for (const period of timePeriods) {
+      try {
+        console.log(`📊 Calculating time-period stats for ${period}...`);
+        const periodStats = await calculateTimePeriodStats(period);
+        
+        await updateStatWithJSON(`stats_${period}`, periodStats.totalDistributed, JSON.stringify(periodStats));
+        results.push({ stat: `stats_${period}`, success: true, count: periodStats.totalEarners });
+        console.log(`✅ ${period} stats updated`);
+      } catch (error) {
+        console.error(`❌ Error calculating ${period} stats:`, error);
+        results.push({ stat: `stats_${period}`, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    }
+
     console.log('✅ Stats cache updated successfully');
 
     return NextResponse.json({
@@ -528,4 +544,87 @@ async function calculateLeaderboardForPeriod(timePeriod: string) {
   });
 
   return leaderboardEntries;
+}
+
+async function calculateTimePeriodStats(timePeriod: string) {
+  // Calculate date range based on time period
+  const now = new Date();
+  let startDate: Date | null = null;
+  
+  switch (timePeriod) {
+    case '24h':
+      startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      break;
+    case '7d':
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case '30d':
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    case 'all_time':
+      startDate = null; // No start date for all time
+      break;
+    default:
+      throw new Error(`Invalid time period: ${timePeriod}`);
+  }
+
+  // Get royalties earned for this period (from token_ownership)
+  let earnedQuery = supabase
+    .from('token_ownership')
+    .select('total_fees_earned, updated_at');
+
+  if (startDate) {
+    earnedQuery = earnedQuery.gte('updated_at', startDate.toISOString());
+  }
+
+  const { data: earnedData, error: earnedError } = await earnedQuery;
+  if (earnedError) throw earnedError;
+
+  const totalEarned = earnedData?.reduce((sum, ownership) => sum + (ownership.total_fees_earned || 0), 0) || 0;
+
+  // Get royalties distributed for this period (from royalty_payouts)
+  let distributedQuery = supabase
+    .from('royalty_payouts')
+    .select('payout_amount_usd, royalty_earner_social_or_wallet')
+    .eq('transaction_status', 'confirmed')
+    .not('payout_amount_usd', 'is', null);
+
+  if (startDate) {
+    distributedQuery = distributedQuery.gte('claimed_at', startDate.toISOString());
+  }
+
+  const { data: distributedData, error: distributedError } = await distributedQuery;
+  if (distributedError) throw distributedError;
+
+  const totalDistributed = distributedData?.reduce((sum, payout) => sum + (payout.payout_amount_usd || 0), 0) || 0;
+
+  // Count unique earners for this period
+  const uniqueEarners = new Set(distributedData?.map(payout => payout.royalty_earner_social_or_wallet) || []);
+  const totalEarners = uniqueEarners.size;
+
+  // Find top earner for this period
+  const earnerTotals = new Map<string, number>();
+  distributedData?.forEach(payout => {
+    const earner = payout.royalty_earner_social_or_wallet;
+    const current = earnerTotals.get(earner) || 0;
+    earnerTotals.set(earner, current + (payout.payout_amount_usd || 0));
+  });
+
+  const topEarner = Array.from(earnerTotals.entries())
+    .sort(([,a], [,b]) => b - a)[0];
+
+  const topEarnerName = topEarner ? topEarner[0] : 'None';
+  const topEarnerAmount = topEarner ? topEarner[1] : 0;
+
+  return {
+    totalEarned,
+    totalDistributed,
+    totalEarners,
+    topEarner: topEarnerName,
+    topEarnerAmount,
+    period: timePeriod,
+    periodLabel: timePeriod === '24h' ? '24 Hours' : 
+                 timePeriod === '7d' ? '7 Days' : 
+                 timePeriod === '30d' ? '30 Days' : 'All Time'
+  };
 }

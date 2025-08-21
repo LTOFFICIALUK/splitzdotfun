@@ -48,7 +48,11 @@ INSERT INTO stats_cache (stat_key, stat_name, value_numeric, value_text, descrip
 ('total_royalties_earned', 'Total Royalties Earned', 0, '$0', 'Total fees earned across all tokens (from token_ownership)', 5),
 ('total_royalties_distributed', 'Total Royalties Distributed', 0, '$0', 'Total USD value of all confirmed royalty payouts', 5),
 ('total_earners', 'Total Earners', 0, '0', 'Count of unique royalty earners who have received payouts', 5),
-('top_earner', 'Top Earner', 0, 'None', 'Highest earning royalty earner of all time', 5)
+('top_earner', 'Top Earner', 0, 'None', 'Highest earning royalty earner of all time', 5),
+('stats_24h', 'Stats 24 Hours', 0, '{}', 'Time-period specific stats for last 24 hours', 5),
+('stats_7d', 'Stats 7 Days', 0, '{}', 'Time-period specific stats for last 7 days', 5),
+('stats_30d', 'Stats 30 Days', 0, '{}', 'Time-period specific stats for last 30 days', 5),
+('stats_all_time', 'Stats All Time', 0, '{}', 'Time-period specific stats for all time', 5)
 ON CONFLICT (stat_key) DO NOTHING;
 
 -- Add comments for documentation

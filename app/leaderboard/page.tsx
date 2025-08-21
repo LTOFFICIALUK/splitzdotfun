@@ -52,45 +52,85 @@ export default function LeaderboardPage() {
     }
   };
 
-  // Fetch cached stats
+  // Fetch cached stats for the selected time period
   useEffect(() => {
     const fetchCachedStats = async () => {
       try {
-        const response = await fetch('/api/stats-cache?keys=total_royalties_earned,total_royalties_distributed,total_earners,top_earner');
+        const response = await fetch(`/api/stats-cache?key=stats_${timePeriod}`);
         const data = await response.json();
         
-        if (data.success) {
+        if (data.success && data.data[`stats_${timePeriod}`]?.value_json) {
+          const periodStats = JSON.parse(data.data[`stats_${timePeriod}`].value_json);
+          
           const newStats = [
             {
               icon: <Trophy className="w-6 h-6" />,
               label: 'Total Royalties Earned',
-              value: data.data.total_royalties_earned?.text || '$0',
-              change: 'All time',
+              value: formatCurrency(periodStats.totalEarned),
+              change: periodStats.periodLabel,
               changeType: 'positive' as const,
             },
             {
               icon: <Trophy className="w-6 h-6" />,
               label: 'Total Royalties Distributed',
-              value: data.data.total_royalties_distributed?.text || '$0',
-              change: 'All time',
+              value: formatCurrency(periodStats.totalDistributed),
+              change: periodStats.periodLabel,
               changeType: 'positive' as const,
             },
             {
               icon: <Users className="w-6 h-6" />,
               label: 'Total Earners',
-              value: data.data.total_earners?.text || '0',
-              change: 'All time',
+              value: periodStats.totalEarners.toString(),
+              change: periodStats.periodLabel,
               changeType: 'positive' as const,
             },
             {
               icon: <DollarSign className="w-6 h-6" />,
               label: 'Top Earner',
-              value: data.data.top_earner?.text || 'None',
-              change: 'All time',
+              value: periodStats.topEarner,
+              change: periodStats.periodLabel,
               changeType: 'neutral' as const,
             },
           ];
           setStats(newStats);
+        } else {
+          // Fallback to all-time stats if period-specific stats not available
+          const fallbackResponse = await fetch('/api/stats-cache?keys=total_royalties_earned,total_royalties_distributed,total_earners,top_earner');
+          const fallbackData = await fallbackResponse.json();
+          
+          if (fallbackData.success) {
+            const newStats = [
+              {
+                icon: <Trophy className="w-6 h-6" />,
+                label: 'Total Royalties Earned',
+                value: fallbackData.data.total_royalties_earned?.text || '$0',
+                change: 'All time',
+                changeType: 'positive' as const,
+              },
+              {
+                icon: <Trophy className="w-6 h-6" />,
+                label: 'Total Royalties Distributed',
+                value: fallbackData.data.total_royalties_distributed?.text || '$0',
+                change: 'All time',
+                changeType: 'positive' as const,
+              },
+              {
+                icon: <Users className="w-6 h-6" />,
+                label: 'Total Earners',
+                value: fallbackData.data.total_earners?.text || '0',
+                change: 'All time',
+                changeType: 'positive' as const,
+              },
+              {
+                icon: <DollarSign className="w-6 h-6" />,
+                label: 'Top Earner',
+                value: fallbackData.data.top_earner?.text || 'None',
+                change: 'All time',
+                changeType: 'neutral' as const,
+              },
+            ];
+            setStats(newStats);
+          }
         }
       } catch (error) {
         console.error('Error fetching cached stats:', error);
@@ -98,7 +138,7 @@ export default function LeaderboardPage() {
     };
 
     fetchCachedStats();
-  }, []);
+  }, [timePeriod]);
 
   return (
     <div className="min-h-screen bg-background-dark">
