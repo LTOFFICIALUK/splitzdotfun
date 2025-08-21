@@ -17,6 +17,28 @@ export interface LeaderboardEntry {
   tokenTicker: string;
 }
 
+// New royalty leaderboard entry structure
+export interface RoyaltyLeaderboardEntry {
+  id: string;
+  time_period: '24h' | '7d' | '30d' | 'all_time';
+  rank_position: number;
+  royalty_earner_social_or_wallet: string;
+  royalty_role: string | null;
+  total_earnings_sol: number;
+  total_earnings_usd: number;
+  payout_count: number;
+  tokens_earned_from: number;
+  top_token_id: string | null;
+  top_token_name: string | null;
+  top_token_symbol: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  average_payout_usd: number | null;
+  largest_single_payout_usd: number | null;
+  most_recent_payout_at: string | null;
+  last_updated: string;
+}
+
 // Wallet-related types
 export interface WalletContextState {
   publicKey: string | null;

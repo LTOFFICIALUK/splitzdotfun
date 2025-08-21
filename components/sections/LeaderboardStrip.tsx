@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Button from '../ui/Button';
 import { Trophy, ArrowRight, Loader2 } from 'lucide-react';
-import { RoyaltyLeaderboardEntry } from '@/types/royalty-leaderboard';
+import { RoyaltyLeaderboardEntry } from '@/types';
 
 const LeaderboardStrip: React.FC = () => {
-  const [leaderboardData, setLeaderboardData] = useState<RoyaltyLeaderboardEntry[]>([]);
+  const [leaderboardEntries, setLeaderboardEntries] = useState<RoyaltyLeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Helper function to format currency
   const formatCurrency = (amount: number): string => {
@@ -19,31 +18,24 @@ const LeaderboardStrip: React.FC = () => {
     }
   };
 
-  // Helper function to format SOL
-  const formatSOL = (amount: number): string => {
-    if (amount >= 1000) {
-      return `${(amount / 1000).toFixed(1)}K SOL`;
-    } else {
-      return `${amount.toFixed(2)} SOL`;
-    }
-  };
-
-  // Fetch leaderboard data
+  // Fetch leaderboard data for the strip (top 5 all-time)
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        const response = await fetch('/api/royalty-leaderboard?period=7d&limit=5');
+        setIsLoading(true);
+        
+        const response = await fetch('/api/royalty-leaderboard?period=all_time&limit=5');
         const data = await response.json();
         
         if (data.success) {
-          setLeaderboardData(data.data);
+          setLeaderboardEntries(data.data);
         } else {
           console.error('Failed to fetch leaderboard:', data.error);
-          setError(data.error || 'Failed to fetch leaderboard data');
+          setLeaderboardEntries([]);
         }
-      } catch (err) {
-        console.error('Error fetching leaderboard:', err);
-        setError('Failed to fetch leaderboard data');
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+        setLeaderboardEntries([]);
       } finally {
         setIsLoading(false);
       }
@@ -90,39 +82,33 @@ const LeaderboardStrip: React.FC = () => {
         <div className="bg-background-dark rounded-2xl border border-background-elevated overflow-hidden">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-primary-mint" />
-              <span className="ml-3 text-text-secondary">Loading leaderboard...</span>
-            </div>
-          ) : error ? (
-            <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <p className="text-text-secondary mb-4">{error}</p>
-                <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-                  Try Again
-                </Button>
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-mint" />
+                <p className="text-text-secondary">Loading leaderboard...</p>
               </div>
             </div>
-          ) : leaderboardData.length === 0 ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center max-w-sm">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center mx-auto mb-3">
-                  <Trophy className="w-6 h-6 text-background-dark" />
-                </div>
-                <h3 className="text-lg font-bold text-text-primary mb-2">No Royalty Earners Yet</h3>
-                <p className="text-text-secondary text-sm mb-4">
-                  Be the first to launch a token and take the top spot!
+          ) : leaderboardEntries.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="max-w-md mx-auto">
+                <Trophy className="w-12 h-12 mx-auto mb-4 text-text-secondary" />
+                <h3 className="text-lg font-semibold text-text-primary mb-2">No Royalty Earners Yet</h3>
+                <p className="text-text-secondary mb-4">
+                  Launch a token and take the top spot!
                 </p>
-                <Button variant="primary" size="sm" onClick={() => window.location.href = '/create'}>
-                  Launch Token
-                </Button>
+                <button
+                  onClick={() => window.location.href = '/create'}
+                  className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm"
+                >
+                  Launch Your Token
+                </button>
               </div>
             </div>
           ) : (
-            leaderboardData.map((entry, index) => (
+            leaderboardEntries.map((entry, index) => (
               <div
                 key={entry.id}
                 className={`flex items-center justify-between p-4 ${
-                  index !== leaderboardData.length - 1 
+                  index !== leaderboardEntries.length - 1 
                     ? 'border-b border-background-elevated' 
                     : ''
                 } hover:bg-background-elevated transition-colors`}
@@ -130,11 +116,11 @@ const LeaderboardStrip: React.FC = () => {
                 {/* Rank and Avatar */}
                 <div className="flex items-center space-x-4">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                    entry.rank_position === 1 
+                    index === 0 
                       ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-background-dark' 
-                      : entry.rank_position === 2 
+                      : index === 1 
                       ? 'bg-gradient-to-r from-gray-300 to-gray-500 text-background-dark' 
-                      : entry.rank_position === 3 
+                      : index === 2 
                       ? 'bg-gradient-to-r from-amber-600 to-amber-800 text-background-dark' 
                       : 'bg-background-elevated text-text-secondary'
                   }`}>
@@ -143,17 +129,14 @@ const LeaderboardStrip: React.FC = () => {
                   
                   <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
                     <span className="text-background-dark font-bold text-sm">
-                      {entry.royalty_earner_social_or_wallet.startsWith('@') 
-                        ? entry.royalty_earner_social_or_wallet.charAt(1).toUpperCase()
-                        : entry.royalty_earner_social_or_wallet.charAt(0).toUpperCase()
-                      }
+                      {entry.royalty_earner_social_or_wallet.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   
                   <div>
                     <p className="font-semibold text-text-primary">{entry.royalty_earner_social_or_wallet}</p>
                     <p className="text-text-secondary text-sm">
-                      {entry.top_token_symbol ? `Top: ${entry.top_token_symbol}` : entry.royalty_role || 'Creator'}
+                      {entry.top_token_symbol ? entry.top_token_symbol : 'Multiple tokens'}
                     </p>
                   </div>
                 </div>
@@ -164,7 +147,7 @@ const LeaderboardStrip: React.FC = () => {
                     {formatCurrency(entry.total_earnings_usd)}
                   </p>
                   <p className="text-text-secondary text-sm">
-                    {formatSOL(entry.total_earnings_sol)} • {entry.payout_count} payouts
+                    {entry.payout_count} payouts
                   </p>
                 </div>
               </div>

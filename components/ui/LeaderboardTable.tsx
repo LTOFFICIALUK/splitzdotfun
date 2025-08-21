@@ -1,16 +1,68 @@
-import React from 'react';
-import { LeaderboardEntry } from '@/types';
-import { Trophy, Medal, Award } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { RoyaltyLeaderboardEntry } from '@/types';
+import { Trophy, Medal, Award, Loader2 } from 'lucide-react';
 
 interface LeaderboardTableProps {
-  entries: LeaderboardEntry[];
+  timePeriod?: '24h' | '7d' | '30d' | 'all_time';
   className?: string;
 }
 
 const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
-  entries,
+  timePeriod = 'all_time',
   className = '',
 }) => {
+  const [entries, setEntries] = useState<RoyaltyLeaderboardEntry[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Helper function to format currency
+  const formatCurrency = (amount: number): string => {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(1)}K`;
+    } else {
+      return `$${amount.toFixed(0)}`;
+    }
+  };
+
+  // Helper function to format SOL
+  const formatSOL = (amount: number): string => {
+    if (amount >= 1000) {
+      return `${(amount / 1000).toFixed(1)}K SOL`;
+    } else {
+      return `${amount.toFixed(2)} SOL`;
+    }
+  };
+
+  // Fetch leaderboard data
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        const response = await fetch(`/api/royalty-leaderboard?period=${timePeriod}&limit=50`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setEntries(data.data);
+        } else {
+          console.error('Failed to fetch leaderboard:', data.error);
+          setError(data.error || 'Failed to fetch leaderboard');
+          setEntries([]);
+        }
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+        setError('Failed to fetch leaderboard');
+        setEntries([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLeaderboard();
+  }, [timePeriod]);
   const getRankIcon = (index: number) => {
     switch (index) {
       case 0:
@@ -47,6 +99,49 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
     alert(`Viewing ${earner} profile and earnings history... (This is a stub)`);
   };
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className={`flex items-center justify-center py-12 ${className}`}>
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-mint" />
+          <p className="text-text-secondary">Loading leaderboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className={`text-center py-12 ${className}`}>
+        <p className="text-text-secondary mb-4">Failed to load leaderboard</p>
+        <p className="text-text-secondary text-sm">{error}</p>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (entries.length === 0) {
+    return (
+      <div className={`text-center py-12 ${className}`}>
+        <div className="max-w-md mx-auto">
+          <Trophy className="w-16 h-16 mx-auto mb-4 text-text-secondary" />
+          <h3 className="text-xl font-semibold text-text-primary mb-2">No Royalty Earners Yet</h3>
+          <p className="text-text-secondary mb-6">
+            Launch a token and take the top spot! Be the first to earn royalties from your community.
+          </p>
+          <button
+            onClick={() => window.location.href = '/create'}
+            className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+          >
+            Launch Your Token
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`overflow-hidden ${className}`}>
       <table className="w-full">
@@ -54,56 +149,62 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
           <tr>
             <th className="px-6 py-4 text-left text-sm font-semibold text-text-secondary">Rank</th>
             <th className="px-6 py-4 text-left text-sm font-semibold text-text-secondary">Earner</th>
-            <th className="px-6 py-4 text-left text-sm font-semibold text-text-secondary">Token</th>
+            <th className="px-6 py-4 text-left text-sm font-semibold text-text-secondary">Top Token</th>
             <th className="px-6 py-4 text-right text-sm font-semibold text-text-secondary">Earned</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-background-elevated">
           {entries.map((entry, index) => (
             <tr
-              key={entry.handle}
+              key={entry.id}
               className="hover:bg-background-elevated transition-colors"
             >
               <td className="px-6 py-4">
                 <div className="flex items-center space-x-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${getRankBadge(index)}`}>
-                    {getRankIcon(index) || `#${index + 1}`}
+                    {getRankIcon(index) || `#${entry.rank_position}`}
                   </div>
                 </div>
               </td>
               <td className="px-6 py-4">
                 <div 
                   className="flex items-center space-x-3 cursor-pointer hover:bg-background-dark rounded-lg p-2 transition-colors"
-                  onClick={() => handleEarnerClick(entry.handle)}
+                  onClick={() => handleEarnerClick(entry.royalty_earner_social_or_wallet)}
                 >
                   <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
                     <span className="text-background-dark font-bold text-sm">
-                      {entry.handle.charAt(1).toUpperCase()}
+                      {entry.royalty_earner_social_or_wallet.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <p className="font-semibold text-text-primary">{entry.handle}</p>
-                    <p className="text-text-secondary text-sm">Earner</p>
+                    <p className="font-semibold text-text-primary">{entry.royalty_earner_social_or_wallet}</p>
+                    <p className="text-text-secondary text-sm">{entry.payout_count} payouts</p>
                   </div>
                 </div>
               </td>
               <td className="px-6 py-4">
                 <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
-                    <span className="text-background-dark font-bold text-xs">
-                      {entry.tokenTicker.charAt(0)}
-                    </span>
-                  </div>
-                  <span className="font-medium text-text-primary">{entry.tokenTicker}</span>
+                  {entry.top_token_symbol ? (
+                    <>
+                      <div className="w-6 h-6 rounded-lg bg-gradient-to-r from-primary-mint to-primary-aqua flex items-center justify-center">
+                        <span className="text-background-dark font-bold text-xs">
+                          {entry.top_token_symbol.charAt(0)}
+                        </span>
+                      </div>
+                      <span className="font-medium text-text-primary">{entry.top_token_symbol}</span>
+                    </>
+                  ) : (
+                    <span className="text-text-secondary text-sm">Multiple tokens</span>
+                  )}
                 </div>
               </td>
               <td className="px-6 py-4 text-right">
                 <div>
                   <p className="text-lg font-bold text-primary-mint">
-                    {entry.earnedSOL.toFixed(2)} SOL
+                    {formatCurrency(entry.total_earnings_usd)}
                   </p>
                   <p className="text-text-secondary text-sm">
-                    This period
+                    {formatSOL(entry.total_earnings_sol)}
                   </p>
                 </div>
               </td>
