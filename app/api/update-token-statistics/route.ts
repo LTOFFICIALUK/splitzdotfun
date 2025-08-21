@@ -52,7 +52,7 @@ const transformJupiterData = (jupiterData: JupiterTokenStats, tokenId: string, c
     circ_supply: jupiterData.circSupply,
     total_supply: jupiterData.totalSupply,
     token_program: jupiterData.tokenProgram,
-    launchpad: jupiterData.launchpad,
+    launchpad: "splitzdotfun", // Hardcoded to our platform
     meta_launchpad: jupiterData.metaLaunchpad,
     partner_config: jupiterData.partnerConfig,
     holder_count: jupiterData.holderCount,
