@@ -331,25 +331,69 @@ const CreateCoin: React.FC = () => {
         throw new Error(result.error || 'Token launch failed');
       }
 
-      console.log('✅ Token metadata created successfully:', result);
+      console.log('✅ Token launch setup completed:', result);
       console.log(`🪙 Token mint: ${result.tokenMint}`);
-      console.log(`📄 Metadata URI: ${result.tokenMetadata}`);
+      console.log(`📝 Needs config transaction: ${result.needsConfigTransaction}`);
 
-      // Check if we need to handle transaction signing
-      if (result.needsSigning) {
-        console.log('🔧 Token metadata created, but transaction signing not yet implemented');
-        console.log('💰 The token metadata is ready, but we need to implement the fee-share config and launch transaction');
-        console.log('📝 For now, the token exists as metadata only');
+      // Step 2: Sign and send transactions
+      const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
+      let signedTransaction: string | undefined;
+
+      // Step 2a: Sign config transaction if needed
+      if (result.needsConfigTransaction && result.transactions?.configTransaction) {
+        console.log('🔧 Step 2a: Signing config transaction...');
         
-        // TODO: Implement fee-share config and launch transaction signing
-        // This will require finding the correct Bags SDK methods or using a different approach
+        try {
+          const configTransactionBuffer = bs58.decode(result.transactions.configTransaction);
+          let configTransaction;
+          
+          try {
+            configTransaction = Transaction.from(configTransactionBuffer);
+          } catch (error) {
+            configTransaction = VersionedTransaction.deserialize(configTransactionBuffer);
+          }
+          
+          signedTransaction = await signAndSendTransaction(configTransaction);
+          console.log('✅ Config transaction signed and sent:', signedTransaction);
+          
+          // Wait for config transaction to be confirmed
+          console.log('⏳ Waiting for config transaction confirmation...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+        } catch (error) {
+          console.error('❌ Failed to sign config transaction:', error);
+          throw new Error('Failed to sign config transaction');
+        }
       }
 
-      console.log('🎉 Token metadata created successfully!');
+      // Step 2b: Sign launch transaction
+      console.log('🚀 Step 2b: Signing launch transaction...');
+      
+      if (result.transactions?.launchTransaction) {
+        try {
+          const launchTransactionBuffer = bs58.decode(result.transactions.launchTransaction);
+          let launchTransaction;
+          
+          try {
+            launchTransaction = Transaction.from(launchTransactionBuffer);
+          } catch (error) {
+            launchTransaction = VersionedTransaction.deserialize(launchTransactionBuffer);
+          }
+          
+          signedTransaction = await signAndSendTransaction(launchTransaction);
+          console.log('✅ Launch transaction signed and sent:', signedTransaction);
+          
+        } catch (error) {
+          console.error('❌ Failed to sign launch transaction:', error);
+          throw new Error('Failed to sign launch transaction');
+        }
+      }
+
+      console.log('🎉 Token launched successfully!');
       console.log(`Token: ${result.tokenMint}`);
       console.log(`Contract Address: ${result.tokenMint}`);
-      console.log(`Metadata URI: ${result.tokenMetadata}`);
-      console.log('💰 Token metadata ready - transaction signing to be implemented');
+      console.log(`Transaction: ${signedTransaction}`);
+      console.log('💰 Token launched with shared fees: 100% platform fees');
       
       // Save token data to database
       try {

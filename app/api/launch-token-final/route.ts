@@ -45,7 +45,11 @@ interface TokenLaunchResponse {
   tokenMetadata: string;
   message: string;
   error?: string;
-  needsSigning?: boolean;
+  transactions?: {
+    configTransaction?: string; // Base58 encoded
+    launchTransaction?: string; // Base58 encoded
+  };
+  needsConfigTransaction?: boolean;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -80,14 +84,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const connection = new Connection(SOLANA_RPC_URL!);
     const sdk = new BagsSDK(BAGS_API_KEY!, connection, 'processed');
 
-    console.log('🚀 Starting token launch process...');
+    const creatorPublicKey = new PublicKey(body.creatorWallet);
+    const initialBuyLamports = Math.floor(body.initialBuyAmount * LAMPORTS_PER_SOL);
+
+    console.log('🚀 Starting complete token launch process...');
     console.log(`📝 Token: ${body.name} (${body.symbol})`);
-    console.log(`💰 Initial buy: ${body.initialBuyAmount} SOL`);
+    console.log(`💰 Initial buy: ${body.initialBuyAmount} SOL (${initialBuyLamports} lamports)`);
     console.log(`👤 Creator: ${body.creatorWallet}`);
 
     // Step 1: Create token info and metadata
     console.log('📝 Step 1: Creating token info and metadata...');
     
+    let tokenInfo: any;
     try {
       // Fetch image from URL to blob
       console.log('🖼️ API: Fetching image from URL...');
@@ -100,7 +108,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // Create token info and metadata using Bags SDK
       console.log('🔧 API: Creating token info and metadata...');
-      const tokenInfo = await sdk.tokenLaunch.createTokenInfoAndMetadata({
+      tokenInfo = await sdk.tokenLaunch.createTokenInfoAndMetadata({
         image: imageBlob,
         name: body.name,
         symbol: body.symbol.toUpperCase().replace('$', ''),
@@ -112,27 +120,67 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('✅ Token info and metadata created successfully!');
       console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
       console.log(`📄 Metadata URI: ${tokenInfo.tokenMetadata}`);
-
-      // Return the token info for frontend to handle transaction signing
-      const response: TokenLaunchResponse = {
-        success: true,
-        tokenMint: tokenInfo.tokenMint,
-        tokenMetadata: tokenInfo.tokenMetadata,
-        message: 'Token metadata created successfully! Now we need to launch the token with shared fees using wallet signing.',
-        needsSigning: true
-      };
-
-      console.log('🎉 Token metadata creation completed!');
-      console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
-      console.log(`📄 Metadata URI: ${tokenInfo.tokenMetadata}`);
-      console.log('💰 Next step: Frontend will handle fee-share config and launch transaction signing');
-
-      return NextResponse.json(response);
-
     } catch (error) {
-      console.error('❌ API: Error in token info creation:', error);
+      console.error('❌ API: Error in Step 1 (token info creation):', error);
       throw error;
     }
+
+    // Step 2: Get or create config
+    console.log('⚙️ Step 2: Getting or creating config...');
+    
+    let configResponse: any;
+    try {
+      console.log('🔧 API: Getting or creating config for wallet:', creatorPublicKey.toString());
+      configResponse = await sdk.config.getOrCreateConfig(creatorPublicKey);
+      
+      console.log(`✅ Config response received`);
+      console.log(`🔑 Config key: ${configResponse.configKey.toString()}`);
+      console.log(`📝 Has transaction: ${!!configResponse.transaction}`);
+    } catch (error) {
+      console.error('❌ API: Error in Step 2 (config):', error);
+      throw error;
+    }
+
+    // Step 3: Create launch transaction
+    console.log('🎯 Step 3: Creating launch transaction...');
+    
+    let launchTransaction: any;
+    try {
+      const baseMint = new PublicKey(tokenInfo.tokenMint);
+      console.log('🔧 API: Creating launch transaction...');
+      launchTransaction = await sdk.tokenLaunch.createLaunchTransaction({
+        metadataUrl: tokenInfo.tokenMetadata,
+        tokenMint: baseMint,
+        launchWallet: creatorPublicKey,
+        initialBuyLamports: initialBuyLamports,
+        configKey: configResponse.configKey,
+      });
+
+      console.log('✅ Launch transaction created successfully!');
+    } catch (error) {
+      console.error('❌ API: Error in Step 3 (launch transaction):', error);
+      throw error;
+    }
+
+    // Step 4: Return the transactions for frontend signing
+    const response: TokenLaunchResponse = {
+      success: true,
+      tokenMint: tokenInfo.tokenMint,
+      tokenMetadata: tokenInfo.tokenMetadata,
+      message: 'Token launch setup completed successfully! Ready for wallet signing.',
+      transactions: {
+        configTransaction: configResponse.transaction ? bs58.encode(configResponse.transaction.serialize()) : undefined,
+        launchTransaction: bs58.encode(launchTransaction.serialize()),
+      },
+      needsConfigTransaction: !!configResponse.transaction,
+    };
+
+    console.log('🎉 Token launch setup completed!');
+    console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
+    console.log(`🔑 Config key: ${configResponse.configKey.toString()}`);
+    console.log(`📝 Needs config transaction: ${!!configResponse.transaction}`);
+
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('❌ Token launch error:', error);
