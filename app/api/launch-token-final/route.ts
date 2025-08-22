@@ -179,21 +179,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } catch (error) {
       console.error('❌ SDK: Error creating fee-share config:', error);
-      console.log('🛟 Fallback: Creating TOKEN LAUNCH config-creation transaction via REST (twitter-based users)...');
+      console.log('🛟 Fallback: Creating fee-share config via REST (wallet-based users)...');
 
-      // REST fallback (twitter handles) – create token launch config creation transaction
+      const restEndpoint = `${BAGS_API_BASE_URL}/token-launch/fee-share/create-config`;
+      const feeShareWalletStr = (await (async () => {
+        const connection = new Connection(SOLANA_RPC_URL);
+        const sdk = new BagsSDK(API_KEY, connection, 'processed');
+        const platformTwitter = 'splitzdotfun';
+        return (await sdk.state.getLaunchWalletForTwitterUsername(platformTwitter)).toString();
+      })());
+
       const fallbackPayload = {
-        baseMint: tokenInfo.response.tokenMint,
-        quoteMint: 'So11111111111111111111111111111111111111112',
+        walletA: new PublicKey(body.creatorWallet).toString(),
+        walletB: feeShareWalletStr,
+        walletABps: creatorBps,
+        walletBBps: platformBps,
         payer: body.creatorWallet,
-        users: [
-          { twitterUsername: 'launchonsplitz', bps: creatorBps },
-          { twitterUsername: 'splitzdotfun', bps: platformBps }
-        ]
-      } as any;
+        baseMint: tokenInfo.response.tokenMint,
+        quoteMint: 'So11111111111111111111111111111111111111112'
+      };
 
       console.log('🔧 Fallback payload:', fallbackPayload);
-      const restEndpoint = `${BAGS_API_BASE_URL}/token-launch/create-config-creation-transaction`;
       console.log('🔗 Fallback endpoint:', restEndpoint);
 
       const restResp = await fetch(restEndpoint, {
@@ -211,20 +217,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('📦 Fallback response:', restJson);
 
       if (!restResp.ok) {
-        throw new Error(`Fee share config creation tx failed: ${restResp.status} ${restBodyText}`);
+        throw new Error(`Fee share config failed: ${restResp.status} ${restBodyText}`);
       }
 
-      // Try to extract tx and configKey from response
       const responseObj = restJson.response ?? restJson;
-      const possibleTx = responseObj.tx ?? responseObj.transaction ?? responseObj;
-      const possibleKey = responseObj.configKey ?? responseObj.key ?? responseObj.config_key;
-
-      if (typeof possibleTx !== 'string') {
-        throw new Error('Fallback response missing transaction string');
+      configKey = responseObj.configKey ?? responseObj.key;
+      const possibleTx = responseObj.tx ?? responseObj.transaction;
+      if (typeof possibleTx === 'string') {
+        configTransactionBase58 = possibleTx;
       }
-      configTransactionBase58 = possibleTx;
-      configKey = typeof possibleKey === 'string' ? possibleKey : undefined as any;
-      console.log('✅ Fallback: Got config tx. configKey:', configKey ?? '(not provided)');
+      if (!configKey) {
+        throw new Error('Fee share config succeeded but missing configKey in response');
+      }
+      console.log('✅ Fallback: Created fee-share config. configKey:', configKey);
     }
 
     // Step 5: Create launch transaction via SDK
