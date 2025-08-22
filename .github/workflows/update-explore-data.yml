@@ -13,11 +13,38 @@ jobs:
     steps:
     - name: Update Explore Page Data
       run: |
+        # Check if required secrets are available
+        if [ -z "${{ secrets.NEXT_PUBLIC_APP_URL }}" ]; then
+          echo "❌ NEXT_PUBLIC_APP_URL secret is required"
+          exit 1
+        fi
+        
+        if [ -z "${{ secrets.EXPLORE_UPDATE_TOKEN }}" ]; then
+          echo "❌ EXPLORE_UPDATE_TOKEN secret is required"
+          exit 1
+        fi
+        
         # Call our API endpoint to update explore page data
-        curl -X POST \
+        echo "🔄 Updating explore page data..."
+        response=$(curl -s -w "\n%{http_code}" -X POST \
           -H "Authorization: Bearer ${{ secrets.EXPLORE_UPDATE_TOKEN }}" \
           -H "Content-Type: application/json" \
-          "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/update-explore-data"
+          "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/update-explore-data")
+        
+        # Extract response body and status code
+        http_code=$(echo "$response" | tail -n1)
+        response_body=$(echo "$response" | head -n -1)
+        
+        echo "📊 Response Status: $http_code"
+        echo "📋 Response Body: $response_body"
+        
+        # Check if the request was successful
+        if [ "$http_code" -eq 200 ]; then
+          echo "✅ Explore page data update completed successfully"
+        else
+          echo "❌ Explore page data update failed with status $http_code"
+          exit 1
+        fi
       
       env:
         EXPLORE_UPDATE_TOKEN: ${{ secrets.EXPLORE_UPDATE_TOKEN }}

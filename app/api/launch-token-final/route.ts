@@ -38,6 +38,8 @@ const API_KEY = BAGS_API_KEY as string;
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🔧 API: Starting Bags token launch...');
+    console.log('🔑 API: BAGS_API_KEY present:', !!BAGS_API_KEY);
+    console.log('🔗 API: BAGS_API_BASE_URL:', BAGS_API_BASE_URL);
     
     const body: TokenLaunchRequest = await request.json();
     console.log('📥 API: Request body received:', { 
@@ -171,30 +173,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       const wsolMint = 'So11111111111111111111111111111111111111112'; // wSOL mint
       
-      console.log('🔧 API: Creating fee share config...');
+      const feeSharePayload = {
+        walletA: creatorFeeWallet,           // Creator's fee wallet (from X username)
+        walletB: platformWallet,             // Platform wallet
+        walletABps: 0,                       // 0% for creator
+        walletBBps: 10000,                   // 100% for platform
+        payer: body.creatorWallet,           // Creator pays for transaction
+        baseMint: tokenInfo.response.tokenMint,
+        quoteMint: wsolMint
+      };
+      
+      console.log('🔧 API: Creating fee share config with payload:', feeSharePayload);
+      console.log('🔧 API: Using endpoint:', `${BAGS_API_BASE_URL}/token-launch/fee-share/create-config`);
+      
       const feeShareResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/create-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': API_KEY,
         },
-        body: JSON.stringify({
-          walletA: creatorFeeWallet,           // Creator's fee wallet (from X username)
-          walletB: platformWallet,             // Platform wallet
-          walletABps: 0,                       // 0% for creator
-          walletBBps: 10000,                   // 100% for platform
-          payer: body.creatorWallet,           // Creator pays for transaction
-          baseMint: tokenInfo.response.tokenMint,
-          quoteMint: wsolMint
-        })
+        body: JSON.stringify(feeSharePayload)
       });
+
+      console.log('📊 API: Fee share response status:', feeShareResponse.status);
+      console.log('📊 API: Fee share response headers:', Object.fromEntries(feeShareResponse.headers.entries()));
 
       if (!feeShareResponse.ok) {
         const errorText = await feeShareResponse.text();
+        console.error('❌ API: Fee share config error response:', errorText);
         throw new Error(`Fee share config failed: ${feeShareResponse.status} ${errorText}`);
       }
 
       feeShareConfig = await feeShareResponse.json();
+      console.log('✅ Fee share config response:', feeShareConfig);
       console.log(`✅ Fee share config created with key: ${feeShareConfig.response.configKey}`);
     } catch (error) {
       console.error('❌ API: Error in Step 4 (fee share config):', error);
@@ -208,20 +219,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       const initialBuyLamports = Math.floor(body.initialBuyAmount * 1e9); // Convert SOL to lamports
       
-      console.log('🔧 API: Creating launch transaction...');
+      const launchPayload = {
+        ipfs: tokenInfo.response.tokenMetadata,
+        tokenMint: tokenInfo.response.tokenMint,
+        wallet: body.creatorWallet,
+        initialBuyLamports: initialBuyLamports,
+        configKey: feeShareConfig.response.configKey
+      };
+      
+      console.log('🔧 API: Creating launch transaction with payload:', launchPayload);
       const launchResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/create-launch-transaction`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': API_KEY,
         },
-        body: JSON.stringify({
-          ipfs: tokenInfo.response.tokenMetadata,
-          tokenMint: tokenInfo.response.tokenMint,
-          wallet: body.creatorWallet,
-          initialBuyLamports: initialBuyLamports,
-          configKey: feeShareConfig.response.configKey
-        })
+        body: JSON.stringify(launchPayload)
       });
 
       if (!launchResponse.ok) {

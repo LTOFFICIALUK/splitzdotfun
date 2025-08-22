@@ -14,11 +14,34 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           DEPLOY_BASE_URL: ${{ secrets.DEPLOY_BASE_URL }}
         run: |
+          # Check if required secrets are available
           if [ -z "$DEPLOY_BASE_URL" ]; then
-            echo "DEPLOY_BASE_URL secret is required (e.g., https://splitz.fun)" >&2
+            echo "❌ DEPLOY_BASE_URL secret is required (e.g., https://splitz.fun)"
             exit 1
           fi
-          curl -sS -X POST "$DEPLOY_BASE_URL/api/update-stats-cache" \
+          
+          if [ -z "$CRON_SECRET" ]; then
+            echo "❌ CRON_SECRET secret is required"
+            exit 1
+          fi
+          
+          echo "🔄 Updating stats cache..."
+          response=$(curl -s -w "\n%{http_code}" -X POST "$DEPLOY_BASE_URL/api/update-stats-cache" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
-            --max-time 55 | cat
+            --max-time 55)
+          
+          # Extract response body and status code
+          http_code=$(echo "$response" | tail -n1)
+          response_body=$(echo "$response" | head -n -1)
+          
+          echo "📊 Response Status: $http_code"
+          echo "📋 Response Body: $response_body"
+          
+          # Check if the request was successful
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Stats cache update completed successfully"
+          else
+            echo "❌ Stats cache update failed with status $http_code"
+            exit 1
+          fi

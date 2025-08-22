@@ -8,10 +8,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // This route manually triggers the token statistics update
     // Useful for testing or manual updates
     
-    const baseUrl = process.env.NEXTAUTH_URL || 'https://splitz.fun';
+    // Construct the base URL properly
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    
+    // Fallback to NEXTAUTH_URL if available
+    if (!baseUrl && process.env.NEXTAUTH_URL) {
+      baseUrl = process.env.NEXTAUTH_URL;
+    }
+    
+    // Fallback to Vercel URL if available
+    if (!baseUrl && process.env.NEXT_PUBLIC_VERCEL_URL) {
+      baseUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+    }
+    
+    // Final fallback to production URL
+    if (!baseUrl) {
+      baseUrl = 'https://splitz.fun';
+    }
+    
     const updateUrl = `${baseUrl}/api/update-token-statistics`;
     
     console.log('🔄 Manually triggering token statistics update...');
+    console.log(`🔗 Using update URL: ${updateUrl}`);
     
     const response = await fetch(updateUrl, {
       method: 'GET',

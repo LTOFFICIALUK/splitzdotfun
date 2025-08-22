@@ -7,8 +7,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🔄 Manually triggering royalty leaderboard update...');
 
+    // Construct the base URL properly
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    
+    // Fallback to Vercel URL if available
+    if (!baseUrl && process.env.NEXT_PUBLIC_VERCEL_URL) {
+      baseUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+    }
+    
+    // Final fallback to localhost
+    if (!baseUrl) {
+      baseUrl = 'http://localhost:3000';
+    }
+    
+    console.log(`🔗 Using base URL: ${baseUrl}`);
+    
     // Make internal call to update leaderboard
-    const response = await fetch(`${process.env.NEXT_PUBLIC_VERCEL_URL || 'http://localhost:3000'}/api/update-royalty-leaderboard`, {
+    const response = await fetch(`${baseUrl}/api/update-royalty-leaderboard`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
