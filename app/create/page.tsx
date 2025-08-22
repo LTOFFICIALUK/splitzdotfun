@@ -306,9 +306,10 @@ const CreateCoin: React.FC = () => {
 
       console.log('🚀 Starting complete token launch process...');
       console.log('📤 Sending token data:', tokenData);
+      console.log('🔗 Calling API: /api/launch-token-final');
       
-      // Use the new complete launch API
-      const response = await fetch('/api/launch-token-final', {
+      // Use the new complete launch API with cache busting
+      const response = await fetch('/api/launch-token-final?v=' + Date.now(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
