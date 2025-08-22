@@ -45,63 +45,76 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const sdk = new BagsSDK(BAGS_API_KEY!, connection, 'processed');
 
     const creatorPublicKey = new PublicKey(body.creatorWallet);
+    const baseMint = new PublicKey(body.tokenMint);
+    const wsolMint = new PublicKey('So11111111111111111111111111111111111111112');
 
     console.log(`🔧 Creating launch transaction for token ${body.tokenMint}`);
     console.log(`💰 Initial buy amount: ${body.initialBuyAmount} SOL (${Math.floor(body.initialBuyAmount * LAMPORTS_PER_SOL)} lamports)`);
 
-    const sdkConnection = sdk.state.getConnection();
-    const commitment = sdk.state.getCommitment();
+    console.log('⚙️  Ensuring fee-share configuration exists for base mint...');
 
-    console.log('⚙️  Fetching configuration...');
+    // Resolve the platform fee claimer wallet from Twitter username (per docs)
+    // https://bags.mintlify.app/api-reference/get-fee-share-wallet
+    const feeClaimerTwitter = 'splitzdotfun';
+    const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(feeClaimerTwitter);
 
-    // Get existing config or config creation TX
-    const configResponse = await sdk.config.getOrCreateConfig(creatorPublicKey);
+    console.log('✨ Fee share wallet (platform):', feeShareWallet.toString());
 
-    // If config doesn't exist, we need to create it first
-    if (configResponse.transaction) { 
-      console.log('🔧 Config does not exist, creating configuration transaction...');
-      console.log(`💰 Config creation cost: ~0.01-0.02 SOL (one-time)`);
-      
-      // Return the config creation transaction for signing
-      const serializedConfigTransaction = configResponse.transaction.serialize();
-      
+    // Create Fee Share Config bound to this base mint and wSOL quote
+    // https://bags.mintlify.app/api-reference/create-fee-share-configuration
+    const feeShareConfig = await sdk.config.createFeeShareConfig({
+      users: [
+        { wallet: creatorPublicKey, bps: 0 },          // 0% creator per current platform rules
+        { wallet: feeShareWallet, bps: 10000 },        // 100% platform
+      ],
+      payer: creatorPublicKey,
+      baseMint,
+      quoteMint: wsolMint,
+    });
+
+    // If config needs to be created, return the config creation transaction first
+    if (feeShareConfig.transaction) {
+      console.log('🔧 Fee-share config missing. Returning config creation transaction for signing...');
+
+      const serializedConfigTransaction = feeShareConfig.transaction.serialize();
+
       const response: CreateLaunchTransactionResponse = {
         success: true,
         transaction: Array.from(serializedConfigTransaction),
         message: 'Configuration transaction created! Sign this first, then we\'ll create the launch transaction.',
         isConfigTransaction: true,
-        configKey: configResponse.configKey.toString()
+        configKey: feeShareConfig.configKey.toString(),
       };
 
-      console.log('✅ Config transaction created successfully');
+      console.log('✅ Fee-share config transaction created successfully');
       return NextResponse.json(response);
     }
-    else {
-      console.log('♻️  Config already exists, reusing config key:', configResponse.configKey.toString());
-    }
 
-    console.log('🎯 Creating token launch transaction...');
+    console.log('♻️  Fee-share config already exists, reusing config key:', feeShareConfig.configKey.toString());
+
+    console.log('🎯 Creating token launch transaction tied to fee-share config...');
 
     // Create token launch transaction
+    // https://bags.mintlify.app/api-reference/create-token-launch-transaction
     const tokenLaunchTransaction = await sdk.tokenLaunch.createLaunchTransaction({
       metadataUrl: body.tokenMetadata,
-      tokenMint: new PublicKey(body.tokenMint),
+      tokenMint: baseMint,
       launchWallet: creatorPublicKey,
       initialBuyLamports: Math.floor(body.initialBuyAmount * LAMPORTS_PER_SOL),
-      configKey: configResponse.configKey,
+      configKey: feeShareConfig.configKey,
     });
 
     // Return the launch transaction for signing
     const serializedLaunchTransaction = tokenLaunchTransaction.serialize();
 
     console.log('✅ Launch transaction created successfully');
-    console.log(`💰 Estimated cost: ${body.initialBuyAmount} SOL (initial buy) + ~0.000005 SOL (fees)`);
+    console.log(`💰 Estimated cost: ${body.initialBuyAmount} SOL (initial buy) + fees`);
 
     const response: CreateLaunchTransactionResponse = {
       success: true,
       transaction: Array.from(serializedLaunchTransaction),
       message: 'Launch transaction created successfully! Ready for signing.',
-      isConfigTransaction: false
+      isConfigTransaction: false,
     };
 
     return NextResponse.json(response);
