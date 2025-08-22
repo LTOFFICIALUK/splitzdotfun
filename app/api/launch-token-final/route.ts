@@ -122,6 +122,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     let configKey: string;
     let configTransactionBase58: string | undefined;
+    let creatorDistributionWallet: PublicKey | null = null;
+    let creatorBps = 1000; // 10%
+    let platformBps = 10000 - creatorBps; // 90%
     try {
       const connection = new Connection(SOLANA_RPC_URL);
       const sdk = new BagsSDK(API_KEY, connection, 'processed');
@@ -137,16 +140,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // Resolve creator distribution wallet by hardcoded Twitter username
       const creatorHandle = 'launchonsplitz';
-      let creatorDistributionWallet: PublicKey | null = null;
       try {
         creatorDistributionWallet = await sdk.state.getLaunchWalletForTwitterUsername(creatorHandle);
         console.log(`✅ SDK: Creator fee share wallet (@${creatorHandle}):`, creatorDistributionWallet.toString());
       } catch (e) {
         throw new Error(`Could not resolve creator wallet from Twitter handle @${creatorHandle}. Please register on Bags.`);
       }
-
-      const creatorBps = 1000; // 10%
-      const platformBps = 10000 - creatorBps; // 90%
       console.log(`🧮 SDK: Using fee split -> creator: ${creatorBps} bps, platform: ${platformBps} bps`);
 
       console.log('🔧 SDK: Creating fee-share config with:', {
@@ -180,7 +179,57 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } catch (error) {
       console.error('❌ SDK: Error creating fee-share config:', error);
-      throw error;
+      console.log('🛟 Fallback: Creating fee-share config CREATION TRANSACTION via REST...');
+
+      // REST fallback to create config-creation transaction
+      const fallbackPayload = {
+        walletA: (creatorDistributionWallet ?? new PublicKey(body.creatorWallet)).toString(),
+        walletB: (await (async () => {
+          const connection = new Connection(SOLANA_RPC_URL);
+          const sdk = new BagsSDK(API_KEY, connection, 'processed');
+          const platformTwitter = 'splitzdotfun';
+          return (await sdk.state.getLaunchWalletForTwitterUsername(platformTwitter)).toString();
+        })()),
+        walletABps: creatorBps,
+        walletBBps: platformBps,
+        payer: body.creatorWallet,
+        baseMint: tokenInfo.response.tokenMint,
+        quoteMint: 'So11111111111111111111111111111111111111112'
+      };
+
+      console.log('🔧 Fallback payload:', fallbackPayload);
+      const restEndpoint = `${BAGS_API_BASE_URL}/token-launch/fee-share/create-config-creation-transaction`;
+      console.log('🔗 Fallback endpoint:', restEndpoint);
+
+      const restResp = await fetch(restEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+        },
+        body: JSON.stringify(fallbackPayload)
+      });
+
+      const restBodyText = await restResp.text();
+      let restJson: any;
+      try { restJson = JSON.parse(restBodyText); } catch { restJson = { raw: restBodyText }; }
+      console.log('📦 Fallback response:', restJson);
+
+      if (!restResp.ok) {
+        throw new Error(`Fee share config creation tx failed: ${restResp.status} ${restBodyText}`);
+      }
+
+      // Try to extract tx and configKey from response
+      const responseObj = restJson.response ?? restJson;
+      const possibleTx = responseObj.tx ?? responseObj.transaction ?? responseObj;
+      const possibleKey = responseObj.configKey ?? responseObj.key ?? responseObj.config_key;
+
+      if (typeof possibleTx !== 'string') {
+        throw new Error('Fallback response missing transaction string');
+      }
+      configTransactionBase58 = possibleTx;
+      configKey = typeof possibleKey === 'string' ? possibleKey : undefined as any;
+      console.log('✅ Fallback: Got config tx. configKey:', configKey ?? '(not provided)');
     }
 
     // Step 5: Create launch transaction via SDK
