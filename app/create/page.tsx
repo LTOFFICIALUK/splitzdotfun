@@ -897,7 +897,7 @@ const CreateCoin: React.FC = () => {
               
               <div>
                 <label htmlFor="twitterUrl" className="block text-sm font-medium text-text-primary mb-2">
-                  Twitter/X URL (required for fee-share)
+                  Twitter/X URL (optional)
                 </label>
                 <input
                   type="url"
@@ -906,11 +906,10 @@ const CreateCoin: React.FC = () => {
                   value={formData.twitterUrl}
                   onChange={handleInputChange}
                   placeholder="https://x.com/yourproject"
-                  required
                   className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent"
                 />
                 <p className="text-xs text-text-secondary mt-2">
-                  Token royalties require a registered X handle. We’ll resolve wallets via Twitter.
+                  Royalties will be split between @launchonsplitz (creator) and @splitzdotfun (platform).
                 </p>
               </div>
             </div>

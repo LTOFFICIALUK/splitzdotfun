@@ -135,34 +135,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(platformTwitter);
       console.log('✅ SDK: Platform fee share wallet:', feeShareWallet.toString());
 
-      // Resolve creator distribution wallet by Twitter username if provided
-      const extractTwitterHandle = (urlOrHandle?: string) => {
-        if (!urlOrHandle) return undefined;
-        const input = urlOrHandle.trim();
-        if (!input) return undefined;
-        // Accept '@handle', 'handle', 'https://twitter.com/handle', 'https://x.com/handle'
-        const atStripped = input.startsWith('@') ? input.slice(1) : input;
-        try {
-          const url = new URL(atStripped.startsWith('http') ? atStripped : `https://${atStripped}`);
-          const host = url.hostname.replace('www.', '');
-          if (host === 'twitter.com' || host === 'x.com') {
-            const parts = url.pathname.split('/').filter(Boolean);
-            return parts[0]?.replace('@', '');
-          }
-        } catch {}
-        return atStripped.replace(/^[^A-Za-z0-9_]+/, '');
-      };
-
-      const creatorHandle = extractTwitterHandle(body.twitterUrl);
-      if (!creatorHandle) {
-        throw new Error('Creator Twitter handle is required to create fee-share configuration');
-      }
+      // Resolve creator distribution wallet by hardcoded Twitter username
+      const creatorHandle = 'launchonsplitz';
       let creatorDistributionWallet: PublicKey | null = null;
       try {
         creatorDistributionWallet = await sdk.state.getLaunchWalletForTwitterUsername(creatorHandle);
         console.log(`✅ SDK: Creator fee share wallet (@${creatorHandle}):`, creatorDistributionWallet.toString());
       } catch (e) {
-        throw new Error(`Could not resolve creator wallet from Twitter handle @${creatorHandle}. Please register on Bags or provide a valid handle.`);
+        throw new Error(`Could not resolve creator wallet from Twitter handle @${creatorHandle}. Please register on Bags.`);
       }
 
       const creatorBps = 1000; // 10%
