@@ -34,6 +34,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
 import { getOrCreateProfile, Profile } from '@/lib/supabase';
+import bs58 from 'bs58';
 
 interface RoyaltyRecipient {
   id: string;
@@ -278,19 +279,21 @@ const CreateCoin: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     
+    if (!isConnected || !publicKey) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    if (!isFormValid) {
+      alert('Please fill in all required fields and ensure royalty percentages add up to 100% or less');
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      // Validate form data
-      if (!isFormValid) {
-        throw new Error('Please fill in all required fields');
-      }
-
-      if (!isConnected || !publicKey) {
-        throw new Error('Please connect your wallet');
-      }
-
-      // Prepare token launch data
+      // Prepare token data
       const tokenData = {
         name: formData.name,
         symbol: formData.symbol,
@@ -298,15 +301,14 @@ const CreateCoin: React.FC = () => {
         imageUrl: formData.imageUrl,
         twitterUrl: formData.twitterUrl,
         initialBuyAmount: parseFloat(formData.initialBuyAmount),
-        royaltyRecipients: royaltyRecipients,
         creatorWallet: publicKey
       };
 
-      // Step 1: Create token metadata
-      console.log('🚀 Step 1: Creating token metadata...');
+      console.log('🚀 Starting complete token launch process...');
       console.log('📤 Sending token data:', tokenData);
       
-      const response = await fetch('/api/launch-token', {
+      // Use the new complete launch API
+      const response = await fetch('/api/launch-token-final', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -319,180 +321,125 @@ const CreateCoin: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create token metadata');
+        throw new Error(errorData.error || 'Failed to launch token');
       }
 
       const result = await response.json();
       
-            // Step 2: Launch the token with shared fees
-      console.log('🚀 Step 2: Launching token with shared fees...');
-      
-      if (result.needsSigning) {
+      if (!result.success) {
+        throw new Error(result.error || 'Token launch failed');
+      }
+
+      console.log('✅ Token launch setup completed:', result);
+      console.log(`🪙 Token mint: ${result.tokenMint}`);
+      console.log(`📝 Needs config transaction: ${result.needsConfigTransaction}`);
+
+      // Sign and send transactions
+      const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
+      let signedTransaction: string | undefined;
+
+      // Step 1: Sign config transaction if needed
+      if (result.needsConfigTransaction && result.transactions?.configTransaction) {
+        console.log('🔧 Step 1: Signing config transaction...');
+        
         try {
-          console.log('🔐 Launching token on-chain with shared fees using Phantom confirmation...');
+          const configTransactionBuffer = bs58.decode(result.transactions.configTransaction);
+          let configTransaction;
           
-          // Create the transaction for signing
-          const transactionResponse = await fetch('/api/create-launch-transaction', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              tokenMint: result.tokenAddress,
-              tokenMetadata: result.tokenMetadata,
-              initialBuyAmount: parseFloat(formData.initialBuyAmount),
-              creatorWallet: publicKey
-            })
-          });
-
-          if (!transactionResponse.ok) {
-            throw new Error('Failed to create launch transaction');
-          }
-
-          const transactionResult = await transactionResponse.json();
-          
-          console.log('🔐 Transaction created, requesting wallet signature...');
-          console.log('Message:', transactionResult.message);
-          
-          // Convert the transaction back to a Transaction object
-          const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
-          
-          let transaction;
           try {
-            // SDK returns serialized transaction as array
-            const transactionBuffer = Buffer.from(transactionResult.transaction);
-            try {
-              transaction = Transaction.from(transactionBuffer);
-            } catch (error) {
-              transaction = VersionedTransaction.deserialize(transactionBuffer);
-            }
-            
-            console.log('Transaction parsed successfully:', transaction);
+            configTransaction = Transaction.from(configTransactionBuffer);
           } catch (error) {
-            console.error('Failed to parse transaction:', error);
-            throw new Error('Invalid transaction format received from API');
+            configTransaction = VersionedTransaction.deserialize(configTransactionBuffer);
           }
           
-          // Sign the transaction with the wallet (this will trigger Phantom popup)
-          let signedTransaction = await signAndSendTransaction(transaction);
+          signedTransaction = await signAndSendTransaction(configTransaction);
+          console.log('✅ Config transaction signed and sent:', signedTransaction);
           
-          console.log('✅ Transaction signed and sent:', signedTransaction);
-          
-          // If this was a config transaction, we need to create the launch transaction
-          if (transactionResult.isConfigTransaction) {
-            console.log('🔧 Config transaction signed, now creating launch transaction...');
-            
-            // Wait a moment for the config transaction to be confirmed
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Create the launch transaction
-            const launchTransactionResponse = await fetch('/api/create-launch-transaction', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                tokenMint: result.tokenAddress,
-                tokenMetadata: result.tokenMetadata,
-                initialBuyAmount: parseFloat(formData.initialBuyAmount),
-                creatorWallet: publicKey
-              })
-            });
-
-            if (!launchTransactionResponse.ok) {
-              throw new Error('Failed to create launch transaction');
-            }
-
-            const launchTransactionResult = await launchTransactionResponse.json();
-            
-            console.log('🔐 Launch transaction created, requesting wallet signature...');
-            
-            // Convert the launch transaction back to a Transaction object
-            let launchTransaction;
-            try {
-              // SDK returns serialized transaction as array
-              const transactionBuffer = Buffer.from(launchTransactionResult.transaction);
-              try {
-                launchTransaction = Transaction.from(transactionBuffer);
-              } catch (error) {
-                launchTransaction = VersionedTransaction.deserialize(transactionBuffer);
-              }
-            } catch (error) {
-              console.error('Failed to parse launch transaction:', error);
-              throw new Error('Invalid launch transaction format received from API');
-            }
-            
-            // Sign the launch transaction with the wallet
-            const signedLaunchTransaction = await signAndSendTransaction(launchTransaction);
-            
-            console.log('✅ Launch transaction signed and sent:', signedLaunchTransaction);
-            
-            // Update the signed transaction for the success message
-            signedTransaction = signedLaunchTransaction;
-          }
-          
-          console.log('✅ Token launched successfully!');
-          console.log(`Token: ${result.symbol}`);
-          console.log(`Contract Address: ${result.tokenAddress}`);
-          console.log(`Transaction: ${signedTransaction}`);
-          console.log('💰 Token launched with shared fees: 100% platform fees');
-          
-          // Save token data to database
-          try {
-            console.log('💾 Saving token data to database...');
-            
-            const royaltyEarners = [
-              {
-                social_or_wallet: "@splitzdotfun",
-                role: "Platform",
-                percentage: 100
-              }
-            ];
-            
-            const saveResponse = await fetch('/api/save-token', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                deployer_user_id: null, // Will be set when user system is implemented
-                deployer_social_or_wallet: publicKey,
-                name: formData.name,
-                symbol: formData.symbol,
-                description: formData.description,
-                contract_address: result.tokenAddress,
-                social_link: formData.twitterUrl || null,
-                image_url: formData.imageUrl || null,
-                banner_url: null, // Not implemented yet
-                metadata_url: result.tokenMetadata,
-                royalty_earners: royaltyEarners
-              })
-            });
-            
-            if (saveResponse.ok) {
-              console.log('✅ Token data saved to database');
-            } else {
-              console.warn('⚠️ Failed to save token data to database');
-            }
-          } catch (error) {
-            console.warn('⚠️ Error saving token data:', error);
-          }
-          
-          // Only redirect to token page after successful launch
-          window.location.href = `/token/${result.tokenAddress}`;
-          return;
+          // Wait for config transaction to be confirmed
+          console.log('⏳ Waiting for config transaction confirmation...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
           
         } catch (error) {
-          console.error('❌ Failed to launch token:', error);
-          
-          // Don't redirect if launch failed - stay on create page
-          console.log('⚠️ Token metadata created, but launch failed. You can try launching later.');
-          return;
+          console.error('❌ Failed to sign config transaction:', error);
+          throw new Error('Failed to sign config transaction');
         }
       }
+
+      // Step 2: Sign launch transaction
+      console.log('🚀 Step 2: Signing launch transaction...');
+      
+      if (result.transactions?.launchTransaction) {
+        try {
+          const launchTransactionBuffer = bs58.decode(result.transactions.launchTransaction);
+          let launchTransaction;
+          
+          try {
+            launchTransaction = Transaction.from(launchTransactionBuffer);
+          } catch (error) {
+            launchTransaction = VersionedTransaction.deserialize(launchTransactionBuffer);
+          }
+          
+          signedTransaction = await signAndSendTransaction(launchTransaction);
+          console.log('✅ Launch transaction signed and sent:', signedTransaction);
+          
+        } catch (error) {
+          console.error('❌ Failed to sign launch transaction:', error);
+          throw new Error('Failed to sign launch transaction');
+        }
+      }
+
+      console.log('🎉 Token launched successfully!');
+      console.log(`Token: ${result.tokenMint}`);
+      console.log(`Contract Address: ${result.tokenMint}`);
+      console.log(`Transaction: ${signedTransaction}`);
+      console.log('💰 Token launched with shared fees: 100% platform fees');
+      
+      // Save token data to database
+      try {
+        console.log('💾 Saving token data to database...');
+        
+        const royaltyEarners = [
+          {
+            social_or_wallet: "@splitzdotfun",
+            role: "Platform",
+            percentage: 100
+          }
+        ];
+        
+        const saveResponse = await fetch('/api/save-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            deployer_user_id: null, // Will be set when user system is implemented
+            deployer_social_or_wallet: publicKey,
+            name: formData.name,
+            symbol: formData.symbol,
+            description: formData.description,
+            contract_address: result.tokenMint,
+            social_link: formData.twitterUrl || null,
+            image_url: formData.imageUrl || null,
+            banner_url: null, // Not implemented yet
+            metadata_url: result.tokenMetadata,
+            royalty_earners: royaltyEarners
+          })
+        });
+        
+        if (saveResponse.ok) {
+          console.log('✅ Token data saved to database');
+        } else {
+          console.warn('⚠️ Failed to save token data to database');
+        }
+      } catch (error) {
+        console.warn('⚠️ Error saving token data:', error);
+      }
+      
+      // Redirect to token page after successful launch
+      window.location.href = `/token/${result.tokenMint}`;
       
     } catch (error) {
-      console.error('Token launch error:', error);
+      console.error('❌ Failed to launch token:', error);
       alert(`❌ Failed to launch token: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
