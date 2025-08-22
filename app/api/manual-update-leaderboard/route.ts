@@ -21,19 +21,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     
     console.log('🔄 Manually triggering royalty leaderboard update...');
 
-    // Construct the base URL properly
-    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-    
-    // Fallback to Vercel URL if available
+    // Determine base URL from request origin first, then env fallbacks
+    let baseUrl: string | null = null;
+    try {
+      const { origin } = new URL(request.url);
+      baseUrl = origin;
+    } catch {}
+
+    if (!baseUrl && process.env.NEXT_PUBLIC_APP_URL) {
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    }
+
     if (!baseUrl && process.env.NEXT_PUBLIC_VERCEL_URL) {
       baseUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
     }
-    
-    // Final fallback to localhost
+
     if (!baseUrl) {
-      baseUrl = 'http://localhost:3000';
+      baseUrl = 'https://splitz.fun';
     }
-    
+
     console.log(`🔗 Using base URL: ${baseUrl}`);
     
     // Make internal call to update leaderboard
@@ -45,7 +51,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     });
 
-    const data = await response.json();
+    // Parse response safely to avoid JSON parse errors on HTML/text
+    const contentType = response.headers.get('content-type') || '';
+    const data = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
 
     if (!response.ok) {
       console.error('❌ Leaderboard update failed:', data);

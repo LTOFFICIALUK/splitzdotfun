@@ -22,20 +22,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // This route manually triggers the token statistics update
     // Useful for testing or manual updates
     
-    // Construct the base URL properly
-    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-    
-    // Fallback to NEXTAUTH_URL if available
+    // Determine base URL from request origin first, then env fallbacks
+    let baseUrl: string | null = null;
+    try {
+      const { origin } = new URL(request.url);
+      baseUrl = origin;
+    } catch {}
+
+    if (!baseUrl && process.env.NEXT_PUBLIC_APP_URL) {
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    }
+
     if (!baseUrl && process.env.NEXTAUTH_URL) {
       baseUrl = process.env.NEXTAUTH_URL;
     }
-    
-    // Fallback to Vercel URL if available
+
     if (!baseUrl && process.env.NEXT_PUBLIC_VERCEL_URL) {
       baseUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
     }
-    
-    // Final fallback to production URL
+
     if (!baseUrl) {
       baseUrl = 'https://splitz.fun';
     }
@@ -56,7 +61,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     });
 
-    const result = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    const result = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
 
     if (!response.ok) {
       console.error('❌ Manual update failed:', result);
