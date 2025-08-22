@@ -34,6 +34,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
 import { getOrCreateProfile, Profile } from '@/lib/supabase';
+import bs58 from 'bs58';
 
 interface RoyaltyRecipient {
   id: string;
@@ -330,15 +331,69 @@ const CreateCoin: React.FC = () => {
         throw new Error(result.error || 'Token launch failed');
       }
 
-      console.log('✅ Token created successfully:', result);
+      console.log('✅ Token launch setup completed:', result);
       console.log(`🪙 Token mint: ${result.tokenMint}`);
-      console.log(`📄 Metadata URI: ${result.tokenMetadata}`);
+      console.log(`📝 Needs config transaction: ${result.needsConfigTransaction}`);
 
-      console.log('🎉 Token created successfully!');
+      // Step 2: Sign and send transactions
+      const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
+      let signedTransaction: string | undefined;
+
+      // Step 2a: Sign config transaction if needed
+      if (result.needsConfigTransaction && result.transactions?.configTransaction) {
+        console.log('🔧 Step 2a: Signing config transaction...');
+        
+        try {
+          const configTransactionBuffer = bs58.decode(result.transactions.configTransaction);
+          let configTransaction;
+          
+          try {
+            configTransaction = Transaction.from(configTransactionBuffer);
+          } catch (error) {
+            configTransaction = VersionedTransaction.deserialize(configTransactionBuffer);
+          }
+          
+          signedTransaction = await signAndSendTransaction(configTransaction);
+          console.log('✅ Config transaction signed and sent:', signedTransaction);
+          
+          // Wait for config transaction to be confirmed
+          console.log('⏳ Waiting for config transaction confirmation...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+        } catch (error) {
+          console.error('❌ Failed to sign config transaction:', error);
+          throw new Error('Failed to sign config transaction');
+        }
+      }
+
+      // Step 2b: Sign launch transaction
+      console.log('🚀 Step 2b: Signing launch transaction...');
+      
+      if (result.transactions?.launchTransaction) {
+        try {
+          const launchTransactionBuffer = bs58.decode(result.transactions.launchTransaction);
+          let launchTransaction;
+          
+          try {
+            launchTransaction = Transaction.from(launchTransactionBuffer);
+          } catch (error) {
+            launchTransaction = VersionedTransaction.deserialize(launchTransactionBuffer);
+          }
+          
+          signedTransaction = await signAndSendTransaction(launchTransaction);
+          console.log('✅ Launch transaction signed and sent:', signedTransaction);
+          
+        } catch (error) {
+          console.error('❌ Failed to sign launch transaction:', error);
+          throw new Error('Failed to sign launch transaction');
+        }
+      }
+
+      console.log('🎉 Token launched successfully!');
       console.log(`Token: ${result.tokenMint}`);
       console.log(`Contract Address: ${result.tokenMint}`);
-      console.log(`Metadata URI: ${result.tokenMetadata}`);
-      console.log('💰 Token created - simplified version without on-chain launch');
+      console.log(`Transaction: ${signedTransaction}`);
+      console.log('💰 Token launched with shared fees: 100% platform fees');
       
       // Save token data to database
       try {
