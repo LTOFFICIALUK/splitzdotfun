@@ -6,6 +6,7 @@ interface TokenLaunchRequest {
   description: string;
   imageUrl: string;
   twitterUrl?: string;
+  creatorXUsername: string; // Add X username field
   initialBuyAmount: number;
   creatorWallet: string;
 }
@@ -44,14 +45,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       name: body.name, 
       symbol: body.symbol, 
       hasImage: !!body.imageUrl,
-      creatorWallet: body.creatorWallet 
+      creatorWallet: body.creatorWallet,
+      creatorXUsername: body.creatorXUsername
     });
     
     // Validate required fields
-    if (!body.name || !body.symbol || !body.description || !body.imageUrl || !body.creatorWallet) {
+    if (!body.name || !body.symbol || !body.description || !body.imageUrl || !body.creatorWallet || !body.creatorXUsername) {
       console.log('❌ API: Missing required fields');
       return NextResponse.json(
-        { error: 'Missing required fields: name, symbol, description, imageUrl, creatorWallet' },
+        { error: 'Missing required fields: name, symbol, description, imageUrl, creatorWallet, creatorXUsername' },
         { status: 400 }
       );
     }
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log('🚀 Starting Bags token launch process...');
     console.log(`📝 Token: ${body.name} (${body.symbol})`);
     console.log(`💰 Initial buy: ${body.initialBuyAmount} SOL`);
-    console.log(`👤 Creator: ${body.creatorWallet}`);
+    console.log(`👤 Creator: ${body.creatorXUsername} (${body.creatorWallet})`);
 
     // Step 1: Create token info and metadata
     console.log('📝 Step 1: Creating token info and metadata...');
@@ -110,37 +112,99 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw error;
     }
 
-    // Step 2: Create basic config for the creator
-    console.log('⚙️ Step 2: Creating basic config for creator...');
+    // Step 2: Get creator's fee wallet from X username
+    console.log('🔍 Step 2: Getting creator fee wallet from X username...');
     
-    let configResponse: any;
+    let creatorFeeWallet: string;
     try {
-      console.log('🔧 API: Creating basic config...');
-      const configApiResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/create-config`, {
+      console.log('🔧 API: Getting fee wallet for creator:', body.creatorXUsername);
+      const creatorFeeWalletResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/wallet/twitter?twitterUsername=${body.creatorXUsername.replace('@', '')}`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': API_KEY,
+        }
+      });
+
+      if (!creatorFeeWalletResponse.ok) {
+        const errorText = await creatorFeeWalletResponse.text();
+        throw new Error(`Creator fee wallet lookup failed: ${creatorFeeWalletResponse.status} ${errorText}`);
+      }
+
+      const creatorFeeWalletData = await creatorFeeWalletResponse.json();
+      creatorFeeWallet = creatorFeeWalletData.response;
+      
+      console.log(`✅ Creator fee wallet: ${creatorFeeWallet}`);
+    } catch (error) {
+      console.error('❌ API: Error in Step 2 (creator fee wallet lookup):', error);
+      throw error;
+    }
+
+    // Step 3: Get platform fee wallet from Twitter username
+    console.log('🔍 Step 3: Getting platform fee wallet from @splitzdotfun...');
+    
+    let platformWallet: string;
+    try {
+      console.log('🔧 API: Getting fee wallet for @splitzdotfun...');
+      const feeWalletResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/wallet/twitter?twitterUsername=splitzdotfun`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': API_KEY,
+        }
+      });
+
+      if (!feeWalletResponse.ok) {
+        const errorText = await feeWalletResponse.text();
+        throw new Error(`Platform fee wallet lookup failed: ${feeWalletResponse.status} ${errorText}`);
+      }
+
+      const feeWalletData = await feeWalletResponse.json();
+      platformWallet = feeWalletData.response;
+      
+      console.log(`✅ Platform fee wallet: ${platformWallet}`);
+    } catch (error) {
+      console.error('❌ API: Error in Step 3 (platform fee wallet lookup):', error);
+      throw error;
+    }
+
+    // Step 4: Create fee share configuration
+    console.log('⚙️ Step 4: Creating fee share configuration...');
+    
+    let feeShareConfig: any;
+    try {
+      const wsolMint = 'So11111111111111111111111111111111111111112'; // wSOL mint
+      
+      console.log('🔧 API: Creating fee share config...');
+      const feeShareResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/create-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': API_KEY,
         },
         body: JSON.stringify({
-          launchWallet: body.creatorWallet
+          walletA: creatorFeeWallet,           // Creator's fee wallet (from X username)
+          walletB: platformWallet,             // Platform wallet
+          walletABps: 0,                       // 0% for creator
+          walletBBps: 10000,                   // 100% for platform
+          payer: body.creatorWallet,           // Creator pays for transaction
+          baseMint: tokenInfo.response.tokenMint,
+          quoteMint: wsolMint
         })
       });
 
-      if (!configApiResponse.ok) {
-        const errorText = await configApiResponse.text();
-        throw new Error(`Config creation failed: ${configApiResponse.status} ${errorText}`);
+      if (!feeShareResponse.ok) {
+        const errorText = await feeShareResponse.text();
+        throw new Error(`Fee share config failed: ${feeShareResponse.status} ${errorText}`);
       }
 
-      configResponse = await configApiResponse.json();
-      console.log(`✅ Basic config created with key: ${configResponse.response.configKey}`);
+      feeShareConfig = await feeShareResponse.json();
+      console.log(`✅ Fee share config created with key: ${feeShareConfig.response.configKey}`);
     } catch (error) {
-      console.error('❌ API: Error in Step 2 (config creation):', error);
+      console.error('❌ API: Error in Step 4 (fee share config):', error);
       throw error;
     }
 
-    // Step 3: Create launch transaction with config key
-    console.log('🎯 Step 3: Creating launch transaction...');
+    // Step 5: Create launch transaction
+    console.log('🎯 Step 5: Creating launch transaction...');
     
     let launchTransaction: any;
     try {
@@ -158,7 +222,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           tokenMint: tokenInfo.response.tokenMint,
           wallet: body.creatorWallet,
           initialBuyLamports: initialBuyLamports,
-          configKey: configResponse.response.configKey
+          configKey: feeShareConfig.response.configKey
         })
       });
 
@@ -170,18 +234,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       launchTransaction = await launchResponse.json();
       console.log('✅ Launch transaction created successfully!');
     } catch (error) {
-      console.error('❌ API: Error in Step 3 (launch transaction):', error);
+      console.error('❌ API: Error in Step 5 (launch transaction):', error);
       throw error;
     }
 
-    // Step 4: Return the transactions for frontend signing
+    // Step 6: Return the transactions for frontend signing
     const response: TokenLaunchResponse = {
       success: true,
       tokenMint: tokenInfo.response.tokenMint,
       tokenMetadata: tokenInfo.response.tokenMetadata,
       message: 'Token launch setup completed successfully! Ready for wallet signing.',
       transactions: {
-        configTransaction: configResponse.response.tx,
+        configTransaction: feeShareConfig.response.tx,
         launchTransaction: launchTransaction.response,
       },
       needsConfigTransaction: true,
@@ -189,7 +253,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🎉 Token launch setup completed!');
     console.log(`🪙 Token mint: ${tokenInfo.response.tokenMint}`);
-    console.log(`💰 Basic launch - creator gets 100% of fees`);
+    console.log(`💰 Fee share: 0% creator (${body.creatorXUsername}), 100% platform (@splitzdotfun)`);
+    console.log(`🔑 Config key: ${feeShareConfig.response.configKey}`);
 
     return NextResponse.json(response);
 
