@@ -154,19 +154,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       };
 
       const creatorHandle = extractTwitterHandle(body.twitterUrl);
+      if (!creatorHandle) {
+        throw new Error('Creator Twitter handle is required to create fee-share configuration');
+      }
       let creatorDistributionWallet: PublicKey | null = null;
-      if (creatorHandle) {
-        try {
-          creatorDistributionWallet = await sdk.state.getLaunchWalletForTwitterUsername(creatorHandle);
-          console.log(`✅ SDK: Creator fee share wallet (@${creatorHandle}):`, creatorDistributionWallet.toString());
-        } catch (e) {
-          console.warn(`⚠️ SDK: Could not resolve creator wallet from @${creatorHandle}. Falling back to connected wallet.`);
-        }
+      try {
+        creatorDistributionWallet = await sdk.state.getLaunchWalletForTwitterUsername(creatorHandle);
+        console.log(`✅ SDK: Creator fee share wallet (@${creatorHandle}):`, creatorDistributionWallet.toString());
+      } catch (e) {
+        throw new Error(`Could not resolve creator wallet from Twitter handle @${creatorHandle}. Please register on Bags or provide a valid handle.`);
       }
 
       const creatorBps = 1000; // 10%
       const platformBps = 10000 - creatorBps; // 90%
       console.log(`🧮 SDK: Using fee split -> creator: ${creatorBps} bps, platform: ${platformBps} bps`);
+
+      console.log('🔧 SDK: Creating fee-share config with:', {
+        baseMint: baseMint.toString(),
+        quoteMint: wsolMint.toString(),
+        payer: creatorPublicKey.toString(),
+        users: [
+          { wallet: (creatorDistributionWallet ?? creatorPublicKey).toString(), bps: creatorBps },
+          { wallet: feeShareWallet.toString(), bps: platformBps },
+        ],
+      });
 
       const feeShareConfig = await sdk.config.createFeeShareConfig({
         users: [
