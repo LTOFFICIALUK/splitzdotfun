@@ -74,7 +74,6 @@ const CreateCoin: React.FC = () => {
     symbol: '',
     description: '',
     twitterUrl: '',
-    creatorXUsername: '', // Add X username field for creator
     imageUrl: '',
     bannerUrl: '',
     initialBuyAmount: '0.01'
@@ -301,7 +300,6 @@ const CreateCoin: React.FC = () => {
         description: formData.description,
         imageUrl: formData.imageUrl,
         twitterUrl: formData.twitterUrl,
-        creatorXUsername: formData.creatorXUsername, // Add X username
         initialBuyAmount: parseFloat(formData.initialBuyAmount),
         creatorWallet: publicKey
       };
@@ -457,7 +455,6 @@ const CreateCoin: React.FC = () => {
     formData.symbol && 
     formData.description && 
     formData.imageUrl && 
-    formData.creatorXUsername && // Require X username
     getTotalPercentage() <= 100 &&
     hasManagerAssigned() &&
     royaltyRecipients.every(recipient => recipient.role);
@@ -898,7 +895,7 @@ const CreateCoin: React.FC = () => {
             <div className="bg-background-card rounded-lg p-6 border border-background-elevated">
               <h3 className="text-lg font-semibold text-text-primary mb-4">Social Links</h3>
               
-              <div className="mb-4">
+              <div>
                 <label htmlFor="twitterUrl" className="block text-sm font-medium text-text-primary mb-2">
                   Twitter/X URL
                 </label>
@@ -911,23 +908,8 @@ const CreateCoin: React.FC = () => {
                   placeholder="https://x.com/yourproject"
                   className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent"
                 />
-              </div>
-              
-              <div>
-                <label htmlFor="creatorXUsername" className="block text-sm font-medium text-text-primary mb-2">
-                  Your X Username (for royalties display)
-                </label>
-                <input
-                  type="text"
-                  id="creatorXUsername"
-                  name="creatorXUsername"
-                  value={formData.creatorXUsername}
-                  onChange={handleInputChange}
-                  placeholder="@yourusername"
-                  className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent"
-                />
                 <p className="text-xs text-text-secondary mt-2">
-                  This will be displayed as the creator in token royalties (e.g., "@yourusername" instead of wallet address)
+                  Token royalties will automatically be split: 0% creator (@launchonsplitz), 100% platform (@splitzdotfun)
                 </p>
               </div>
             </div>

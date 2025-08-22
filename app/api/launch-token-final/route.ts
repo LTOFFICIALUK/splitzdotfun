@@ -6,7 +6,6 @@ interface TokenLaunchRequest {
   description: string;
   imageUrl: string;
   twitterUrl?: string;
-  creatorXUsername: string; // Add X username field
   initialBuyAmount: number;
   creatorWallet: string;
 }
@@ -45,15 +44,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       name: body.name, 
       symbol: body.symbol, 
       hasImage: !!body.imageUrl,
-      creatorWallet: body.creatorWallet,
-      creatorXUsername: body.creatorXUsername
+      creatorWallet: body.creatorWallet
     });
     
     // Validate required fields
-    if (!body.name || !body.symbol || !body.description || !body.imageUrl || !body.creatorWallet || !body.creatorXUsername) {
+    if (!body.name || !body.symbol || !body.description || !body.imageUrl || !body.creatorWallet) {
       console.log('❌ API: Missing required fields');
       return NextResponse.json(
-        { error: 'Missing required fields: name, symbol, description, imageUrl, creatorWallet, creatorXUsername' },
+        { error: 'Missing required fields: name, symbol, description, imageUrl, creatorWallet' },
         { status: 400 }
       );
     }
@@ -61,7 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log('🚀 Starting Bags token launch process...');
     console.log(`📝 Token: ${body.name} (${body.symbol})`);
     console.log(`💰 Initial buy: ${body.initialBuyAmount} SOL`);
-    console.log(`👤 Creator: ${body.creatorXUsername} (${body.creatorWallet})`);
+    console.log(`👤 Creator: @launchonsplitz (${body.creatorWallet})`);
 
     // Step 1: Create token info and metadata
     console.log('📝 Step 1: Creating token info and metadata...');
@@ -113,12 +111,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Step 2: Get creator's fee wallet from X username
-    console.log('🔍 Step 2: Getting creator fee wallet from X username...');
+    console.log('🔍 Step 2: Getting creator fee wallet from @launchonsplitz...');
     
     let creatorFeeWallet: string;
     try {
-      console.log('🔧 API: Getting fee wallet for creator:', body.creatorXUsername);
-      const creatorFeeWalletResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/wallet/twitter?twitterUsername=${body.creatorXUsername.replace('@', '')}`, {
+      console.log('🔧 API: Getting fee wallet for creator: launchonsplitz');
+      const creatorFeeWalletResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/wallet/twitter?twitterUsername=launchonsplitz`, {
         method: 'GET',
         headers: {
           'x-api-key': API_KEY,
@@ -253,7 +251,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🎉 Token launch setup completed!');
     console.log(`🪙 Token mint: ${tokenInfo.response.tokenMint}`);
-    console.log(`💰 Fee share: 0% creator (${body.creatorXUsername}), 100% platform (@splitzdotfun)`);
+    console.log(`💰 Fee share: 0% creator (@launchonsplitz), 100% platform (@splitzdotfun)`);
     console.log(`🔑 Config key: ${feeShareConfig.response.configKey}`);
 
     return NextResponse.json(response);
