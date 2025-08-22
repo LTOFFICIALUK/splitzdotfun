@@ -120,11 +120,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Step 2-4: Create fee-share config using Bags SDK (more reliable than REST)
     console.log('⚙️ Step 2-4: Creating fee-share configuration via SDK...');
 
-    let configKey: string;
+    let configKey: string | undefined;
     let configTransactionBase58: string | undefined;
     let creatorDistributionWallet: PublicKey | null = null;
-    let creatorBps = 1000; // 10%
-    let platformBps = 10000 - creatorBps; // 90%
+    const creatorBps = 1000; // 10%
+    const platformBps = 10000 - creatorBps; // 90%
     try {
       const connection = new Connection(SOLANA_RPC_URL);
       const sdk = new BagsSDK(API_KEY, connection, 'processed');
@@ -179,60 +179,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } catch (error) {
       console.error('❌ SDK: Error creating fee-share config:', error);
-      console.log('🛟 Fallback: Creating fee-share config via REST (wallet-based users)...');
-
-      const restEndpoint = `${BAGS_API_BASE_URL}/token-launch/fee-share/create-config`;
-      const feeShareWalletStr = (await (async () => {
-        const connection = new Connection(SOLANA_RPC_URL);
-        const sdk = new BagsSDK(API_KEY, connection, 'processed');
-        const platformTwitter = 'splitzdotfun';
-        return (await sdk.state.getLaunchWalletForTwitterUsername(platformTwitter)).toString();
-      })());
-
-      const fallbackPayload = {
-        walletA: new PublicKey(body.creatorWallet).toString(),
-        walletB: feeShareWalletStr,
-        walletABps: creatorBps,
-        walletBBps: platformBps,
-        payer: body.creatorWallet,
-        baseMint: tokenInfo.response.tokenMint,
-        quoteMint: 'So11111111111111111111111111111111111111112'
-      };
-
-      console.log('🔧 Fallback payload:', fallbackPayload);
-      console.log('🔗 Fallback endpoint:', restEndpoint);
-
-      const restResp = await fetch(restEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
-        body: JSON.stringify(fallbackPayload)
-      });
-
-      const restBodyText = await restResp.text();
-      let restJson: any;
-      try { restJson = JSON.parse(restBodyText); } catch { restJson = { raw: restBodyText }; }
-      console.log('📦 Fallback response:', restJson);
-
-      if (!restResp.ok) {
-        throw new Error(`Fee share config failed: ${restResp.status} ${restBodyText}`);
-      }
-
-      const responseObj = restJson.response ?? restJson;
-      configKey = responseObj.configKey ?? responseObj.key;
-      const possibleTx = responseObj.tx ?? responseObj.transaction;
-      if (typeof possibleTx === 'string') {
-        configTransactionBase58 = possibleTx;
-      }
-      if (!configKey) {
-        throw new Error('Fee share config succeeded but missing configKey in response');
-      }
-      console.log('✅ Fallback: Created fee-share config. configKey:', configKey);
+      // Strict compliance: surface error and stop here
+      throw error;
     }
 
-    // Step 5: Create launch transaction via SDK
+    // Step 5: If config creation transaction is required, return it first and defer launch creation
+    if (configTransactionBase58 && !configKey) {
+      const response: TokenLaunchResponse = {
+        success: true,
+        tokenMint: tokenInfo.response.tokenMint,
+        tokenMetadata: tokenInfo.response.tokenMetadata,
+        message: 'Configuration transaction created. Sign this first, then request the launch transaction.',
+        transactions: {
+          configTransaction: configTransactionBase58,
+        },
+        needsConfigTransaction: true,
+      };
+
+      console.log('🔁 Returning config transaction only; awaiting client to request launch tx');
+      return NextResponse.json(response);
+    }
+
+    // Step 5b: Config exists; create launch transaction now
     console.log('🎯 Step 5: Creating launch transaction via SDK...');
     let launchTransactionBase58: string;
     try {
@@ -243,16 +211,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const baseMint = new PublicKey(tokenInfo.response.tokenMint);
       const initialBuyLamports = Math.floor(body.initialBuyAmount * 1e9);
 
-      const launchArgs: any = {
+      const launchTx = await sdk.tokenLaunch.createLaunchTransaction({
         metadataUrl: tokenInfo.response.tokenMetadata,
         tokenMint: baseMint,
         launchWallet: creatorPublicKey,
         initialBuyLamports,
-      };
-      if (configKey) {
-        launchArgs.configKey = new PublicKey(configKey);
-      }
-      const launchTx = await sdk.tokenLaunch.createLaunchTransaction(launchArgs);
+        configKey: new PublicKey(configKey!),
+      });
 
       launchTransactionBase58 = bs58.encode(launchTx.serialize());
       console.log('✅ SDK: Launch transaction created');
@@ -271,7 +236,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         configTransaction: configTransactionBase58,
         launchTransaction: launchTransactionBase58,
       },
-      needsConfigTransaction: !!configTransactionBase58,
+      needsConfigTransaction: false,
     };
 
     console.log('🎉 Token launch setup completed!');
