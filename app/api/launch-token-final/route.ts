@@ -130,12 +130,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const baseMint = new PublicKey(tokenInfo.response.tokenMint);
       const wsolMint = new PublicKey('So11111111111111111111111111111111111111112');
 
-      const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername('splitzdotfun');
+      // Resolve platform wallet by Twitter username (fee claimer)
+      const platformTwitter = 'splitzdotfun';
+      const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(platformTwitter);
       console.log('✅ SDK: Platform fee share wallet:', feeShareWallet.toString());
+
+      // Resolve creator distribution wallet by Twitter username if provided
+      const extractTwitterHandle = (urlOrHandle?: string) => {
+        if (!urlOrHandle) return undefined;
+        const input = urlOrHandle.trim();
+        if (!input) return undefined;
+        // Accept '@handle', 'handle', 'https://twitter.com/handle', 'https://x.com/handle'
+        const atStripped = input.startsWith('@') ? input.slice(1) : input;
+        try {
+          const url = new URL(atStripped.startsWith('http') ? atStripped : `https://${atStripped}`);
+          const host = url.hostname.replace('www.', '');
+          if (host === 'twitter.com' || host === 'x.com') {
+            const parts = url.pathname.split('/').filter(Boolean);
+            return parts[0]?.replace('@', '');
+          }
+        } catch {}
+        return atStripped.replace(/^[^A-Za-z0-9_]+/, '');
+      };
+
+      const creatorHandle = extractTwitterHandle(body.twitterUrl);
+      let creatorDistributionWallet: PublicKey | null = null;
+      if (creatorHandle) {
+        try {
+          creatorDistributionWallet = await sdk.state.getLaunchWalletForTwitterUsername(creatorHandle);
+          console.log(`✅ SDK: Creator fee share wallet (@${creatorHandle}):`, creatorDistributionWallet.toString());
+        } catch (e) {
+          console.warn(`⚠️ SDK: Could not resolve creator wallet from @${creatorHandle}. Falling back to connected wallet.`);
+        }
+      }
 
       const feeShareConfig = await sdk.config.createFeeShareConfig({
         users: [
-          { wallet: creatorPublicKey, bps: 0 },
+          { wallet: creatorDistributionWallet ?? creatorPublicKey, bps: 0 },
           { wallet: feeShareWallet, bps: 10000 },
         ],
         payer: creatorPublicKey,
@@ -204,13 +235,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('❌ Token launch error:', error);
-    
+    // Improve surfacing of nested error messages
+    const message = error instanceof Error ? (error.message || 'Internal server error') : 'Internal server error';
+    let details: any = undefined;
+    try {
+      details = JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    } catch {}
+    console.error('❌ Token launch error:', message, details ?? '');
+
     return NextResponse.json(
       { 
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to launch token',
-        details: process.env.NODE_ENV === 'development' ? error : undefined
+        error: message,
+        details: process.env.NODE_ENV === 'development' ? (details ?? String(error)) : undefined
       },
       { status: 500 }
     );
