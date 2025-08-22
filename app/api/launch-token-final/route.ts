@@ -17,6 +17,7 @@ interface TokenLaunchResponse {
   message: string;
   error?: string;
   transactions?: {
+    configTransaction?: string; // Base58 encoded
     launchTransaction?: string; // Base58 encoded
   };
   needsConfigTransaction?: boolean;
@@ -109,8 +110,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw error;
     }
 
-    // Step 2: Create basic launch transaction (without fee sharing for now)
-    console.log('🎯 Step 2: Creating basic launch transaction...');
+    // Step 2: Create basic config for the creator
+    console.log('⚙️ Step 2: Creating basic config for creator...');
+    
+    let configResponse: any;
+    try {
+      console.log('🔧 API: Creating basic config...');
+      const configApiResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/create-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+        },
+        body: JSON.stringify({
+          launchWallet: body.creatorWallet
+        })
+      });
+
+      if (!configApiResponse.ok) {
+        const errorText = await configApiResponse.text();
+        throw new Error(`Config creation failed: ${configApiResponse.status} ${errorText}`);
+      }
+
+      configResponse = await configApiResponse.json();
+      console.log(`✅ Basic config created with key: ${configResponse.response.configKey}`);
+    } catch (error) {
+      console.error('❌ API: Error in Step 2 (config creation):', error);
+      throw error;
+    }
+
+    // Step 3: Create launch transaction with config key
+    console.log('🎯 Step 3: Creating launch transaction...');
     
     let launchTransaction: any;
     try {
@@ -127,8 +157,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           ipfs: tokenInfo.response.tokenMetadata,
           tokenMint: tokenInfo.response.tokenMint,
           wallet: body.creatorWallet,
-          initialBuyLamports: initialBuyLamports
-          // Note: Not including configKey for now - basic launch without fee sharing
+          initialBuyLamports: initialBuyLamports,
+          configKey: configResponse.response.configKey
         })
       });
 
@@ -140,20 +170,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       launchTransaction = await launchResponse.json();
       console.log('✅ Launch transaction created successfully!');
     } catch (error) {
-      console.error('❌ API: Error in Step 2 (launch transaction):', error);
+      console.error('❌ API: Error in Step 3 (launch transaction):', error);
       throw error;
     }
 
-    // Step 3: Return the transaction for frontend signing
+    // Step 4: Return the transactions for frontend signing
     const response: TokenLaunchResponse = {
       success: true,
       tokenMint: tokenInfo.response.tokenMint,
       tokenMetadata: tokenInfo.response.tokenMetadata,
       message: 'Token launch setup completed successfully! Ready for wallet signing.',
       transactions: {
+        configTransaction: configResponse.response.tx,
         launchTransaction: launchTransaction.response,
       },
-      needsConfigTransaction: false,
+      needsConfigTransaction: true,
     };
 
     console.log('🎉 Token launch setup completed!');
