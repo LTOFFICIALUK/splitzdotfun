@@ -160,7 +160,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const feeShareConfig = await sdk.config.createFeeShareConfig({
         users: [
-          { wallet: creatorDistributionWallet ?? creatorPublicKey, bps: creatorBps },
+          { wallet: creatorPublicKey, bps: creatorBps },
           { wallet: feeShareWallet, bps: platformBps },
         ],
         payer: creatorPublicKey,
