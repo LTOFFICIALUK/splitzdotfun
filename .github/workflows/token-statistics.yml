@@ -29,6 +29,7 @@ jobs:
         # Call the API endpoint to update statistics
         response=$(curl -s -w "\n%{http_code}" -X POST https://splitz.fun/api/manual-update-statistics \
           -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
           -H "User-Agent: GitHub-Actions-Token-Update/1.0")
         
         # Extract response body and status code
@@ -53,6 +54,7 @@ jobs:
         # Call the API endpoint to update leaderboard
         response=$(curl -s -w "\n%{http_code}" -X POST https://splitz.fun/api/manual-update-leaderboard \
           -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
           -H "User-Agent: GitHub-Actions-Leaderboard-Update/1.0")
         
         # Extract response body and status code

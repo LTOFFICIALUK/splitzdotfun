@@ -5,6 +5,20 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    // Check authorization (for cron job security)
+    const authHeader = request.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+    
+    // Only check authorization if CRON_SECRET is set
+    if (cronSecret) {
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        console.log('❌ Unauthorized access attempt to manual-update-leaderboard');
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      }
+    } else {
+      console.warn('⚠️ CRON_SECRET not set - skipping authorization check');
+    }
+    
     console.log('🔄 Manually triggering royalty leaderboard update...');
 
     // Construct the base URL properly

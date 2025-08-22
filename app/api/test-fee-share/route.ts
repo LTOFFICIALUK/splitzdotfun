@@ -50,11 +50,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const platformWallet = platformFeeWalletData.response;
     console.log(`✅ Platform fee wallet: ${platformWallet}`);
 
-    // Step 3: Test fee share configuration with a test token mint
+    // Step 3: Test fee share configuration with a real token mint
     console.log('⚙️ Step 3: Testing fee share configuration...');
     
     const wsolMint = 'So11111111111111111111111111111111111111112';
-    const testTokenMint = 'CccKzP1hAfQYBNvVLqBaPfzRYATWs1BUzKMWjimqBAGS'; // From our test token
+    // Use a real, existing token mint instead of our test token
+    const realTokenMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // USDC mint (for testing)
     const testCreatorWallet = '6m4GhWkYGgrzwjUYC5oZaut3TGqWPV3y94kpcmykeL9E'; // Your wallet
     
     const feeSharePayload = {
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       walletABps: 0,
       walletBBps: 10000,
       payer: testCreatorWallet,
-      baseMint: testTokenMint,
+      baseMint: realTokenMint,
       quoteMint: wsolMint
     };
     
