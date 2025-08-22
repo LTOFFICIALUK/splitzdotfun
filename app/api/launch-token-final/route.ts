@@ -179,26 +179,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } catch (error) {
       console.error('❌ SDK: Error creating fee-share config:', error);
-      console.log('🛟 Fallback: Creating fee-share config CREATION TRANSACTION via REST...');
+      console.log('🛟 Fallback: Creating TOKEN LAUNCH config-creation transaction via REST (twitter-based users)...');
 
-      // REST fallback to create config-creation transaction
+      // REST fallback (twitter handles) – create token launch config creation transaction
       const fallbackPayload = {
-        walletA: (creatorDistributionWallet ?? new PublicKey(body.creatorWallet)).toString(),
-        walletB: (await (async () => {
-          const connection = new Connection(SOLANA_RPC_URL);
-          const sdk = new BagsSDK(API_KEY, connection, 'processed');
-          const platformTwitter = 'splitzdotfun';
-          return (await sdk.state.getLaunchWalletForTwitterUsername(platformTwitter)).toString();
-        })()),
-        walletABps: creatorBps,
-        walletBBps: platformBps,
-        payer: body.creatorWallet,
         baseMint: tokenInfo.response.tokenMint,
-        quoteMint: 'So11111111111111111111111111111111111111112'
-      };
+        quoteMint: 'So11111111111111111111111111111111111111112',
+        payer: body.creatorWallet,
+        users: [
+          { twitterUsername: 'launchonsplitz', bps: creatorBps },
+          { twitterUsername: 'splitzdotfun', bps: platformBps }
+        ]
+      } as any;
 
       console.log('🔧 Fallback payload:', fallbackPayload);
-      const restEndpoint = `${BAGS_API_BASE_URL}/token-launch/fee-share/create-config-creation-transaction`;
+      const restEndpoint = `${BAGS_API_BASE_URL}/token-launch/create-config-creation-transaction`;
       console.log('🔗 Fallback endpoint:', restEndpoint);
 
       const restResp = await fetch(restEndpoint, {
