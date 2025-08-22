@@ -243,13 +243,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const baseMint = new PublicKey(tokenInfo.response.tokenMint);
       const initialBuyLamports = Math.floor(body.initialBuyAmount * 1e9);
 
-      const launchTx = await sdk.tokenLaunch.createLaunchTransaction({
+      const launchArgs: any = {
         metadataUrl: tokenInfo.response.tokenMetadata,
         tokenMint: baseMint,
         launchWallet: creatorPublicKey,
         initialBuyLamports,
-        configKey: new PublicKey(configKey),
-      });
+      };
+      if (configKey) {
+        launchArgs.configKey = new PublicKey(configKey);
+      }
+      const launchTx = await sdk.tokenLaunch.createLaunchTransaction(launchArgs);
 
       launchTransactionBase58 = bs58.encode(launchTx.serialize());
       console.log('✅ SDK: Launch transaction created');
