@@ -119,64 +119,65 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Step 2: Either create fee-share config (default) or bypass if env flag set
     let configKey: string | undefined;
     let configTransactionBase58: string | undefined;
+    
     if (BYPASS_FEE_SHARE) {
       console.log('⏭️ Bypassing shared fees due to BYPASS_FEE_SHARE=true. Proceeding to launch tx.');
     } else {
       console.log('⚙️ Step 2-4: Creating fee-share configuration via SDK...');
 
-    const creatorBps = 1000; // 10%
-    const platformBps = 10000 - creatorBps; // 90%
-    try {
-      const connection = new Connection(SOLANA_RPC_URL);
-      const sdk = new BagsSDK(API_KEY, connection, 'processed');
+      const creatorBps = 1000; // 10%
+      const platformBps = 10000 - creatorBps; // 90%
+      
+      try {
+        const connection = new Connection(SOLANA_RPC_URL);
+        const sdk = new BagsSDK(API_KEY, connection, 'processed');
 
-      const creatorPublicKey = new PublicKey(body.creatorWallet);
-      const baseMint = new PublicKey(tokenInfo.response.tokenMint);
-      const wsolMint = new PublicKey('So11111111111111111111111111111111111111112');
+        const creatorPublicKey = new PublicKey(body.creatorWallet);
+        const baseMint = new PublicKey(tokenInfo.response.tokenMint);
+        const wsolMint = new PublicKey('So11111111111111111111111111111111111111112');
 
-      // Set fee claimer wallet (walletB) to the platform wallet explicitly
-      const feeShareWallet = new PublicKey('4rQSE2L8SmE6Doe3FggaDnUvaXeySfvSDtMx1xpPHN2a');
-      console.log('✅ SDK: Platform fee share wallet (walletB):', feeShareWallet.toString());
+        // Set fee claimer wallet (walletB) to the platform wallet explicitly
+        const feeShareWallet = new PublicKey('4rQSE2L8SmE6Doe3FggaDnUvaXeySfvSDtMx1xpPHN2a');
+        console.log('✅ SDK: Platform fee share wallet (walletB):', feeShareWallet.toString());
 
-      console.log(`🧮 SDK: Using fee split -> creator: ${creatorBps} bps, platform: ${platformBps} bps`);
+        console.log(`🧮 SDK: Using fee split -> creator: ${creatorBps} bps, platform: ${platformBps} bps`);
 
-      console.log('🔧 SDK: Creating fee-share config with:', {
-        baseMint: baseMint.toString(),
-        quoteMint: wsolMint.toString(),
-        payer: creatorPublicKey.toString(),
-        users: [
-          { wallet: creatorPublicKey.toString(), bps: creatorBps },
-          { wallet: feeShareWallet.toString(), bps: platformBps },
-        ],
-      });
+        console.log('🔧 SDK: Creating fee-share config with:', {
+          baseMint: baseMint.toString(),
+          quoteMint: wsolMint.toString(),
+          payer: creatorPublicKey.toString(),
+          users: [
+            { wallet: creatorPublicKey.toString(), bps: creatorBps },
+            { wallet: feeShareWallet.toString(), bps: platformBps },
+          ],
+        });
 
-      const feeShareConfig = await sdk.config.createFeeShareConfig({
-        users: [
-          { wallet: creatorPublicKey, bps: creatorBps },
-          { wallet: feeShareWallet, bps: platformBps },
-        ],
-        payer: creatorPublicKey,
-        baseMint,
-        quoteMint: wsolMint,
-      });
+        const feeShareConfig = await sdk.config.createFeeShareConfig({
+          users: [
+            { wallet: creatorPublicKey, bps: creatorBps },
+            { wallet: feeShareWallet, bps: platformBps },
+          ],
+          payer: creatorPublicKey,
+          baseMint,
+          quoteMint: wsolMint,
+        });
 
-      configKey = feeShareConfig.configKey.toString();
-      console.log('✅ SDK: Fee-share config key:', configKey);
+        configKey = feeShareConfig.configKey.toString();
+        console.log('✅ SDK: Fee-share config key:', configKey);
 
-      if (feeShareConfig.transaction) {
-        configTransactionBase58 = bs58.encode(feeShareConfig.transaction.serialize());
-        console.log('🔧 SDK: Config creation transaction needs signing');
-      } else {
-        console.log('♻️ SDK: Fee-share configuration already exists');
+        if (feeShareConfig.transaction) {
+          configTransactionBase58 = bs58.encode(feeShareConfig.transaction.serialize());
+          console.log('🔧 SDK: Config creation transaction needs signing');
+        } else {
+          console.log('♻️ SDK: Fee-share configuration already exists');
+        }
+      } catch (error) {
+        console.error('❌ SDK: Error creating fee-share config:', error);
+        // Strict compliance: surface error and stop here
+        throw error;
       }
-    } catch (error) {
-      console.error('❌ SDK: Error creating fee-share config:', error);
-      // Strict compliance: surface error and stop here
-      throw error;
-    }
 
-    // Step 3: If config creation transaction is required, return it first and defer launch creation
-    if (!BYPASS_FEE_SHARE) {
+      // Step 3: If config creation transaction is required, return it first and defer launch creation
       if (configTransactionBase58 && !configKey) {
         const response: TokenLaunchResponse = {
           success: true,
@@ -192,8 +193,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.log('🔁 Returning config transaction only; awaiting client to request launch tx');
         return NextResponse.json(response);
       }
-    }
-
     }
     // Step 3b: Create launch transaction now
     console.log('🎯 Creating launch transaction via SDK...');
