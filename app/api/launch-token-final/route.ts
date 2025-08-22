@@ -36,16 +36,27 @@ interface TokenLaunchResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    console.log('🔧 API: Starting launch-token-final request...');
+    
     const body: TokenLaunchRequest = await request.json();
+    console.log('📥 API: Request body received:', { 
+      name: body.name, 
+      symbol: body.symbol, 
+      hasImage: !!body.imageUrl,
+      creatorWallet: body.creatorWallet 
+    });
     
     // Validate required fields
     if (!body.name || !body.symbol || !body.description || !body.imageUrl || !body.creatorWallet) {
+      console.log('❌ API: Missing required fields');
       return NextResponse.json(
         { error: 'Missing required fields: name, symbol, description, imageUrl, creatorWallet' },
         { status: 400 }
       );
     }
 
+    console.log('🔧 API: Initializing SDK...');
+    
     // Initialize Solana connection and BagsApp SDK
     const connection = new Connection(SOLANA_RPC_URL!);
     const sdk = new BagsSDK(BAGS_API_KEY!, connection, 'processed');
@@ -58,74 +69,106 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log(`💰 Initial buy: ${body.initialBuyAmount} SOL (${initialBuyLamports} lamports)`);
     console.log(`👤 Creator: ${body.creatorWallet}`);
 
+    // Declare variables that will be used throughout
+    let tokenInfo: any;
+    let feeShareWallet: PublicKey;
+    let feeShareConfig: any;
+    let launchTransaction: any;
+
     // Step 1: Create token info and metadata
     console.log('📝 Step 1: Creating token info and metadata...');
     
-    // Fetch image from URL to blob
-    const imageResponse = await fetch(body.imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error('Failed to fetch image from URL');
+    try {
+      // Fetch image from URL to blob
+      console.log('🖼️ API: Fetching image from URL...');
+      const imageResponse = await fetch(body.imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.status} ${imageResponse.statusText}`);
+      }
+      const imageBlob = await imageResponse.blob();
+      console.log('✅ API: Image fetched successfully, size:', imageBlob.size);
+
+      // Create token info and metadata using Bags SDK
+      console.log('🔧 API: Creating token info and metadata...');
+      tokenInfo = await sdk.tokenLaunch.createTokenInfoAndMetadata({
+        image: imageBlob,
+        name: body.name,
+        symbol: body.symbol.toUpperCase().replace('$', ''),
+        description: body.description,
+        twitter: body.twitterUrl || undefined,
+        website: `https://splitz.fun/token/placeholder`, // Will be updated after mint creation
+      });
+
+      console.log('✅ Token info and metadata created successfully!');
+      console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
+      console.log(`📄 Metadata URI: ${tokenInfo.tokenMetadata}`);
+    } catch (error) {
+      console.error('❌ API: Error in Step 1 (token info creation):', error);
+      throw error;
     }
-    const imageBlob = await imageResponse.blob();
-
-    // Create token info and metadata using Bags SDK
-    const tokenInfo = await sdk.tokenLaunch.createTokenInfoAndMetadata({
-      image: imageBlob,
-      name: body.name,
-      symbol: body.symbol.toUpperCase().replace('$', ''),
-      description: body.description,
-      twitter: body.twitterUrl || undefined,
-      website: `https://splitz.fun/token/placeholder`, // Will be updated after mint creation
-    });
-
-    console.log('✅ Token info and metadata created successfully!');
-    console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
-    console.log(`📄 Metadata URI: ${tokenInfo.tokenMetadata}`);
 
     // Step 2: Get fee share wallet for platform
     console.log('🔍 Step 2: Getting platform fee share wallet...');
     
-    const platformTwitterUsername = 'splitzdotfun';
-    const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(platformTwitterUsername);
-    
-    console.log(`✅ Platform fee wallet: ${feeShareWallet.toString()}`);
+    try {
+      const platformTwitterUsername = 'splitzdotfun';
+      console.log('🔧 API: Getting fee share wallet for:', platformTwitterUsername);
+      feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(platformTwitterUsername);
+      
+      console.log(`✅ Platform fee wallet: ${feeShareWallet.toString()}`);
+    } catch (error) {
+      console.error('❌ API: Error in Step 2 (fee share wallet):', error);
+      throw error;
+    }
 
     // Step 3: Create fee share configuration
     console.log('⚙️ Step 3: Creating fee share configuration...');
     
-    const baseMint = new PublicKey(tokenInfo.tokenMint);
-    const wsolMint = new PublicKey('So11111111111111111111111111111111111111112'); // wSOL mint
+    try {
+      const baseMint = new PublicKey(tokenInfo.tokenMint);
+      const wsolMint = new PublicKey('So11111111111111111111111111111111111111112'); // wSOL mint
 
-    const feeShareConfig = await sdk.config.createFeeShareConfig({
-      users: [
-        {
-          wallet: creatorPublicKey,
-          bps: 0, // 0% for creator
-        },
-        {
-          wallet: feeShareWallet,
-          bps: 10000, // 100% for platform
-        },
-      ],
-      payer: creatorPublicKey,
-      baseMint: baseMint,
-      quoteMint: wsolMint,
-    });
+      console.log('🔧 API: Creating fee share config...');
+      feeShareConfig = await sdk.config.createFeeShareConfig({
+        users: [
+          {
+            wallet: creatorPublicKey,
+            bps: 0, // 0% for creator
+          },
+          {
+            wallet: feeShareWallet,
+            bps: 10000, // 100% for platform
+          },
+        ],
+        payer: creatorPublicKey,
+        baseMint: baseMint,
+        quoteMint: wsolMint,
+      });
 
-    console.log(`✅ Fee share config created with key: ${feeShareConfig.configKey.toString()}`);
+      console.log(`✅ Fee share config created with key: ${feeShareConfig.configKey.toString()}`);
+    } catch (error) {
+      console.error('❌ API: Error in Step 3 (fee share config):', error);
+      throw error;
+    }
 
     // Step 4: Create launch transaction
     console.log('🎯 Step 4: Creating launch transaction...');
     
-    const launchTransaction = await sdk.tokenLaunch.createLaunchTransaction({
-      metadataUrl: tokenInfo.tokenMetadata,
-      tokenMint: baseMint,
-      launchWallet: creatorPublicKey,
-      initialBuyLamports: initialBuyLamports,
-      configKey: feeShareConfig.configKey,
-    });
+    try {
+      const baseMint = new PublicKey(tokenInfo.tokenMint);
+      launchTransaction = await sdk.tokenLaunch.createLaunchTransaction({
+        metadataUrl: tokenInfo.tokenMetadata,
+        tokenMint: baseMint,
+        launchWallet: creatorPublicKey,
+        initialBuyLamports: initialBuyLamports,
+        configKey: feeShareConfig.configKey,
+      });
 
-    console.log('✅ Launch transaction created successfully!');
+      console.log('✅ Launch transaction created successfully!');
+    } catch (error) {
+      console.error('❌ API: Error in Step 4 (launch transaction):', error);
+      throw error;
+    }
 
     // Step 5: Return the transactions for frontend signing
     const response: TokenLaunchResponse = {
