@@ -207,7 +207,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const launchArgs: any = {
         metadataUrl: tokenInfo.response.tokenMetadata,
-        tokenMint: baseMint,
+        tokenMint: baseMint.toString(),
         launchWallet: creatorPublicKey,
         initialBuyLamports,
       };
