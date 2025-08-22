@@ -74,7 +74,7 @@ This project integrates with the BagsApp API for Solana token creation. The inte
 ### Features
 - **Token Launching**: Create Solana tokens with automatic royalty routing
 - **X Receiver Hardcoding**: All tokens automatically route 100% of X royalties to `@splitzdotfun`
-- **Website URL Generation**: Each token gets a unique URL: `https://splitz.fun/token/{token_id}`
+- **Website URL Generation**: Each token gets a unique URL: `https://splitz.fun/token/{CA}` (using contract address)
 - **Royalty Management**: Configure royalty distribution among creators and influencers
 - **Wallet Integration**: Secure wallet signing for token creation
 
@@ -96,7 +96,7 @@ NODE_ENV=development
 2. Form data is validated and prepared
 3. BagsApp API is called with token parameters
 4. X receiver is hardcoded to `@splitzdotfun` with 100% allocation
-5. Website URL is generated as `https://splitz.fun/token/{unique_id}`
+5. Website URL is generated as `https://splitz.fun/token/{CA}` (using contract address)
 6. Token is created and user is redirected to token page
 
 ### Dependencies

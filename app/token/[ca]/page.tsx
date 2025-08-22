@@ -244,7 +244,15 @@ const TokenPage: React.FC<TokenPageProps> = ({ params }) => {
               tokenAddress: contractAddress,
               creatorWallet: dbToken.deployer_social_or_wallet,
               initialBuyAmount: 0.01,
-              royaltyRecipients: [
+              royaltyRecipients: dbToken.ownership?.royalty_earners?.map((earner: any, index: number) => ({
+                id: index.toString(),
+                type: 'social',
+                identifier: earner.social_or_wallet,
+                percentage: earner.percentage, // use correct key from DB JSON
+                label: earner.social_or_wallet,
+                isManager: earner.role === 'Management',
+                role: earner.role || ''
+              })) || [
                 {
                   id: '1',
                   type: 'social',
@@ -327,7 +335,7 @@ const TokenPage: React.FC<TokenPageProps> = ({ params }) => {
         <div className="w-full h-[600px] bg-[#101114] rounded-lg border border-[#2A2E39] flex items-center justify-center">
           <div className="text-center">
             <BarChart3 className="w-16 h-16 text-[#526FFF]/50 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-[#D1D4DC] mb-2">Market Cap Chart</h3>
+            <h3 className="text-lg font-semibold text-[#D1D4DC] mb-2">${tokenData?.symbol || 'TOKEN'} 24h Price Chart</h3>
             <p className="text-[#787B86] text-sm">No chart data available</p>
           </div>
         </div>
@@ -714,12 +722,8 @@ const TokenPage: React.FC<TokenPageProps> = ({ params }) => {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <h1 className="text-2xl sm:text-3xl font-bold text-text-primary truncate">{tokenData.name}</h1>
-                    <span className="text-sm bg-primary-mint/20 text-primary-mint px-3 py-1 rounded-full font-medium flex-shrink-0">
-                      {tokenData.symbol}
-                    </span>
-                    <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full flex items-center space-x-1 flex-shrink-0">
-                      <Zap className="w-3 h-3" />
-                      <span>Active</span>
+                    <span className="text-lg font-bold text-primary-mint flex-shrink-0">
+                      ${tokenData.symbol}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
@@ -829,7 +833,7 @@ const TokenPage: React.FC<TokenPageProps> = ({ params }) => {
               {/* Token Information Links at Top */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-4">
-                  <h2 className="text-xl font-semibold text-[#D1D4DC]">Market Cap Chart</h2>
+                  <h2 className="text-xl font-semibold text-[#D1D4DC]">${tokenData?.symbol || 'TOKEN'} 24h Price Chart</h2>
                   <div className="flex items-center space-x-1 bg-[#1E222D] rounded-lg p-1">
                     {(['1m', '5m', '15m'] as const).map((interval) => (
                       <button

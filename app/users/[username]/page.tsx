@@ -258,7 +258,7 @@ export default function UserProfilePage() {
                     ownershipPercentage: listing.new_owner_fee_share,
                     price: listing.listing_price,
                     currency: 'SOL' as const,
-                    description: listing.description || null,
+                    description: listing.description || '',
                     seller: profile?.username || `${profile?.wallet_address?.slice(0, 6)}...${profile?.wallet_address?.slice(-4)}`,
                     imageUrl: listing.tokens?.image_url || '/images/placeholder-token.png',
                   };

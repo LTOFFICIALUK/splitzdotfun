@@ -15,6 +15,9 @@ interface CreateLaunchTransactionRequest {
   tokenMetadata: string;
   initialBuyAmount: number;
   creatorWallet: string;
+  symbol?: string;
+  name?: string;
+  twitterUrl?: string;
 }
 
 interface CreateLaunchTransactionResponse {

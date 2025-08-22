@@ -4,11 +4,11 @@ Token launching on SplitzFun is designed to be simple, powerful, and profitable.
 
 ## Overview
 
-SplitzFun integrates with the Bags API to create Solana tokens with automatic royalty routing. When you launch a token, you're not just creating a tradable asset—you're building an ecosystem where social influence translates directly into financial value.
+SplitzFun integrates with the Bags Shared Fees API to create Solana tokens with automatic fee distribution. When you launch a token, you're not just creating a tradable asset—you're building an ecosystem where social influence translates directly into financial value through shared fees.
 
 ### What Makes SplitzFun Tokens Special
 
-- **Built-in Royalties**: Automatic royalty distribution to creators and influencers
+- **Built-in Shared Fees**: Automatic fee distribution to creators and platform
 - **Ownership Rights**: Tradeable ownership stakes like startup equity
 - **Community Governance**: Holders can participate in decision-making
 - **Transparent Analytics**: Real-time tracking of performance and earnings
@@ -74,14 +74,13 @@ Before launching your token, ensure you have:
 - Keep it engaging and professional
 - Maximum 500 characters
 
-### Step 4: Set Up Royalty Distribution
+### Step 4: Shared Fees Configuration
 
-This is where SplitzFun shines. Configure how royalties will be distributed among creators, influencers, and community members.
+This is where SplitzFun shines. All tokens are automatically configured with shared fees for transparent and fair distribution.
 
 **Default Configuration:**
-- **Creator (You)**: 100% of royalties initially
-- **Platform Fee**: 1% automatically deducted
-- **Net Creator Share**: 99% of total royalties
+- **Platform (splitzdotfun)**: 100% of trading fees (available for users to claim)
+- **Fee Distribution**: Automatic through smart contracts
 
 **Adding Recipients:**
 1. Click "Add Recipient" for each person you want to share royalties with

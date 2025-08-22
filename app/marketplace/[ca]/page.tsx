@@ -235,7 +235,7 @@ export default function MarketplaceListingDetailPage() {
           timeLock: split.timeLock || 0,
           isRemoved: false
         })),
-        description: listing.description
+        description: listing.description || ''
       });
       setShowEditModal(true);
     }

@@ -16,6 +16,15 @@ export interface Token {
   created_at: string;
   updated_at: string;
   fees_generated: number;
+  // Additional fields for explore page
+  ticker?: string;
+  address?: string;
+  logoUrl?: string;
+  mcap?: number;
+  change24h?: number;
+  creatorRewardsSOL?: number;
+  website_link?: string;
+  solscan_link?: string;
 }
 
 export interface RoyaltyEarner {

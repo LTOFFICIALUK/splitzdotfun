@@ -46,7 +46,7 @@ const TokenColumn: React.FC<TokenColumnProps> = ({
   return (
     <div className={`bg-background-card border border-background-elevated flex flex-col h-full max-h-full ${className}`}>
       {/* Column Header - Simplified */}
-      <div className="p-2 border-b border-background-elevated flex-shrink-0">
+      <div className="p-3 border-b border-background-elevated flex-shrink-0">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-text-primary">{title}</h2>
           <button 
@@ -69,55 +69,78 @@ const TokenColumn: React.FC<TokenColumnProps> = ({
           >
             <div className="flex items-start space-x-2">
               {/* Left Side - Token Image and CA */}
-              <div className="flex-shrink-0">
-                <div className="w-16 h-16 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 flex items-center justify-center mb-2">
-                  <span className="text-white font-bold text-xl">{token.ticker?.charAt(0) || '?'}</span>
+              <div className="flex-shrink-0 w-16">
+                <div className="w-16 h-16 rounded-lg bg-transparent flex items-center justify-center mb-2 overflow-hidden">
+                  {token.logoUrl ? (
+                    <img 
+                      src={token.logoUrl} 
+                      alt={`${token.name} logo`}
+                      className="w-full h-full object-cover rounded-lg"
+                      onError={(e) => {
+                        // Fallback to letter if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        target.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                  ) : null}
+                  <span className={`text-text-secondary font-bold text-xl ${token.logoUrl ? 'hidden' : ''}`}>
+                    {token.ticker?.charAt(0) || '?'}
+                  </span>
                 </div>
-                <p className="text-xs text-text-secondary font-medium tracking-wide">{token.address}</p>
+                <p className="text-xs text-text-secondary font-medium tracking-wide truncate" title={token.address}>
+                  {token.address ? `${token.address.slice(0, 6)}...${token.address.slice(-6)}` : ''}
+                </p>
               </div>
 
               {/* Center - Token Info and Links */}
               <div className="flex-1 min-w-0">
                 {/* Name and Symbol */}
                 <div className="flex items-center space-x-2 mb-3">
-                  <h3 className="text-sm font-semibold text-text-primary">{token.name}</h3>
-                  <span className="text-xs text-text-secondary">{token.ticker}</span>
+                  <h3 className="text-sm font-semibold text-text-primary truncate">{token.name}</h3>
+                  <span className="text-xs text-text-secondary flex-shrink-0">{token.ticker}</span>
                 </div>
 
                 {/* Links Row */}
                 <div className="flex items-center space-x-2">
-                  <button 
-                    className="p-1 rounded hover:bg-background-elevated transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alert(`View ${token.name} on X (This is a stub)`);
-                    }}
-                    aria-label="View on X"
-                  >
-                    <div className="w-3 h-3 bg-text-secondary rounded-sm flex items-center justify-center">
-                      <span className="text-background-dark text-xs font-bold">X</span>
-                    </div>
-                  </button>
-                  <button 
-                    className="p-1 rounded hover:bg-background-elevated transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alert(`Visit ${token.name} website (This is a stub)`);
-                    }}
-                    aria-label="Visit website"
-                  >
-                    <Globe className="w-3 h-3 text-text-secondary" />
-                  </button>
-                  <button 
-                    className="p-1 rounded hover:bg-background-elevated transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alert(`Search ${token.name} on Solscan (This is a stub)`);
-                    }}
-                    aria-label="Search on Solscan"
-                  >
-                    <Search className="w-3 h-3 text-text-secondary" />
-                  </button>
+                  {token.social_link && (
+                    <button 
+                      className="p-1 rounded hover:bg-background-elevated transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(token.social_link, '_blank', 'noopener,noreferrer');
+                      }}
+                      aria-label="View on X"
+                    >
+                      <div className="w-3 h-3 bg-text-secondary rounded-sm flex items-center justify-center">
+                        <span className="text-background-dark text-xs font-bold">X</span>
+                      </div>
+                    </button>
+                  )}
+                  {token.website_link && (
+                    <button 
+                      className="p-1 rounded hover:bg-background-elevated transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(token.website_link, '_blank', 'noopener,noreferrer');
+                      }}
+                      aria-label="Visit website"
+                    >
+                      <Globe className="w-3 h-3 text-text-secondary" />
+                    </button>
+                  )}
+                  {token.solscan_link && (
+                    <button 
+                      className="p-1 rounded hover:bg-background-elevated transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(token.solscan_link, '_blank', 'noopener,noreferrer');
+                      }}
+                      aria-label="Search on Solscan"
+                    >
+                      <Search className="w-3 h-3 text-text-secondary" />
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -8,6 +8,9 @@ export interface Token {
   change24h: number;
   creatorRewardsSOL: number;
   holder_count?: number;
+  social_link?: string;
+  website_link?: string;
+  solscan_link?: string;
 }
 
 export interface LeaderboardEntry {

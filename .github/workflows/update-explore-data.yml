@@ -1,0 +1,24 @@
+name: Update Explore Page Data
+
+on:
+  schedule:
+    # Run every minute (accounting for processing time)
+    - cron: '* * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  update-explore-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Update Explore Page Data
+      run: |
+        # Call our API endpoint to update explore page data
+        curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.EXPLORE_UPDATE_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/update-explore-data"
+      
+      env:
+        EXPLORE_UPDATE_TOKEN: ${{ secrets.EXPLORE_UPDATE_TOKEN }}
+        NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
