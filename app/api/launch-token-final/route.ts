@@ -1,13 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BagsSDK } from '@bagsfm/bags-sdk';
-import { Connection, LAMPORTS_PER_SOL, PublicKey, VersionedTransaction } from '@solana/web3.js';
-import bs58 from 'bs58';
+
+// Add error handling around imports
+let BagsSDK: any;
+let Connection: any;
+let LAMPORTS_PER_SOL: any;
+let PublicKey: any;
+let VersionedTransaction: any;
+let bs58: any;
+
+try {
+  BagsSDK = require('@bagsfm/bags-sdk').BagsSDK;
+  const web3 = require('@solana/web3.js');
+  Connection = web3.Connection;
+  LAMPORTS_PER_SOL = web3.LAMPORTS_PER_SOL;
+  PublicKey = web3.PublicKey;
+  VersionedTransaction = web3.VersionedTransaction;
+  bs58 = require('bs58');
+} catch (importError) {
+  console.error('❌ API: Failed to import required modules:', importError);
+}
 
 // Initialize BagsApp API configuration
 const BAGS_API_KEY = process.env.BAGS_API_KEY;
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 
 if (!BAGS_API_KEY) {
+  console.error('❌ API: BAGS_API_KEY environment variable is missing');
   throw new Error('BAGS_API_KEY environment variable is required');
 }
 
@@ -37,6 +55,11 @@ interface TokenLaunchResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🔧 API: Starting launch-token-final request...');
+    
+    // Check if imports were successful
+    if (!BagsSDK || !Connection || !LAMPORTS_PER_SOL || !PublicKey || !VersionedTransaction || !bs58) {
+      throw new Error('Required modules failed to import');
+    }
     
     const body: TokenLaunchRequest = await request.json();
     console.log('📥 API: Request body received:', { 
@@ -71,7 +94,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Declare variables that will be used throughout
     let tokenInfo: any;
-    let feeShareWallet: PublicKey;
+    let feeShareWallet: any;
     let feeShareConfig: any;
     let launchTransaction: any;
 
