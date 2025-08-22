@@ -15,9 +15,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Check authorization (optional - for cron job security)
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.log('⚠️ Unauthorized leaderboard update attempt');
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const cronSecret = process.env.CRON_SECRET;
+    
+    // Only check authorization if CRON_SECRET is set
+    if (cronSecret) {
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        console.log('⚠️ Unauthorized leaderboard update attempt');
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      }
+    } else {
+      console.warn('⚠️ CRON_SECRET not set - skipping authorization check');
     }
 
     const timePeriods = ['24h', '7d', '30d', 'all_time'];
