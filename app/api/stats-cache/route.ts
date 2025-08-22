@@ -48,11 +48,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Convert to key-value object for easier consumption
     const statsObject: Record<string, any> = {};
     stats?.forEach(stat => {
+      // Coerce numeric to number; in some drivers decimals may come as string
+      const numeric = stat.value_numeric !== null && stat.value_numeric !== undefined
+        ? Number(stat.value_numeric)
+        : null;
+
+      // Ensure JSON is parsed to object if stored as string
+      let parsedJson: any = null;
+      if (stat.value_json !== null && stat.value_json !== undefined) {
+        try {
+          parsedJson = typeof stat.value_json === 'string' ? JSON.parse(stat.value_json) : stat.value_json;
+        } catch {
+          parsedJson = stat.value_json; // leave as-is if parse fails
+        }
+      }
+
       statsObject[stat.stat_key] = {
         name: stat.stat_name,
-        numeric: stat.value_numeric,
-        text: stat.value_text,
-        json: stat.value_json,
+        numeric,
+        text: stat.value_text ?? null,
+        json: parsedJson,
         last_calculated: stat.last_calculated,
         next_update: stat.next_update
       };

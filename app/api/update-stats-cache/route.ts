@@ -9,6 +9,33 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+const STAT_NAMES: Record<string, string> = {
+  total_royalties_claimed_usd: 'Total Royalties Claimed (USD)',
+  total_tokens_launched: 'Total Tokens Launched',
+  total_active_holders: 'Total Active Holders',
+  total_royalty_earners: 'Total Royalty Earners',
+  average_earnings_per_earner: 'Average Earnings Per Earner',
+  top_earner_this_week: 'Top Earner This Week',
+  total_payouts_this_week: 'Total Payouts This Week',
+  platform_fees_collected: 'Platform Fees Collected',
+  leaderboard_24h: 'Leaderboard 24 Hours',
+  leaderboard_7d: 'Leaderboard 7 Days',
+  leaderboard_30d: 'Leaderboard 30 Days',
+  leaderboard_all_time: 'Leaderboard All Time',
+  total_royalties_earned: 'Total Royalties Earned',
+  total_royalties_distributed: 'Total Royalties Distributed',
+  total_earners: 'Total Earners',
+  top_earner: 'Top Earner',
+  stats_24h: 'Stats 24 Hours',
+  stats_7d: 'Stats 7 Days',
+  stats_30d: 'Stats 30 Days',
+  stats_all_time: 'Stats All Time',
+  marketplace_total_volume_sol: 'Marketplace Total Volume (SOL)',
+  marketplace_total_volume_usd: 'Marketplace Total Volume (USD)',
+  marketplace_total_sales: 'Marketplace Total Sales',
+  marketplace_average_sale_time: 'Marketplace Average Sale Time'
+};
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('📊 Updating stats cache...');
@@ -210,7 +237,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.log(`📊 Calculating leaderboard for ${period}...`);
         const leaderboardData = await calculateLeaderboardForPeriod(period);
         
-        await updateStatWithJSON(`leaderboard_${period}`, leaderboardData.length, JSON.stringify(leaderboardData));
+        await updateStatWithJSON(`leaderboard_${period}`, leaderboardData.length, leaderboardData);
         results.push({ stat: `leaderboard_${period}`, success: true, count: leaderboardData.length });
         console.log(`✅ ${period} leaderboard updated with ${leaderboardData.length} entries`);
       } catch (error) {
@@ -344,7 +371,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.log(`📊 Calculating time-period stats for ${period}...`);
         const periodStats = await calculateTimePeriodStats(period);
         
-        await updateStatWithJSON(`stats_${period}`, periodStats.totalDistributed, JSON.stringify(periodStats));
+        await updateStatWithJSON(`stats_${period}`, periodStats.totalDistributed, periodStats);
         results.push({ stat: `stats_${period}`, success: true, count: periodStats.totalEarners });
         console.log(`✅ ${period} stats updated`);
       } catch (error) {
@@ -383,18 +410,19 @@ async function updateStat(statKey: string, numericValue: number, textValue: stri
     .from('stats_cache')
     .upsert({
       stat_key: statKey,
+      stat_name: STAT_NAMES[statKey] || statKey,
       value_numeric: numericValue,
       value_text: textValue,
       last_calculated: new Date().toISOString(),
       next_update: nextUpdate.toISOString()
-    });
+    }, { onConflict: 'stat_key' });
 
   if (error) {
     throw new Error(`Failed to update stat ${statKey}: ${error.message}`);
   }
 }
 
-async function updateStatWithJSON(statKey: string, numericValue: number, jsonValue: string) {
+async function updateStatWithJSON(statKey: string, numericValue: number, jsonValue: unknown) {
   const nextUpdate = new Date();
   nextUpdate.setMinutes(nextUpdate.getMinutes() + 5); // Update every 5 minutes
 
@@ -402,11 +430,12 @@ async function updateStatWithJSON(statKey: string, numericValue: number, jsonVal
     .from('stats_cache')
     .upsert({
       stat_key: statKey,
+      stat_name: STAT_NAMES[statKey] || statKey,
       value_numeric: numericValue,
-      value_json: jsonValue,
+      value_json: jsonValue as any,
       last_calculated: new Date().toISOString(),
       next_update: nextUpdate.toISOString()
-    });
+    }, { onConflict: 'stat_key' });
 
   if (error) {
     throw new Error(`Failed to update stat ${statKey}: ${error.message}`);
