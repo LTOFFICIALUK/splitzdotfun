@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BagsSDK } from '@bagsfm/bags-sdk';
+import { Connection, PublicKey } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 interface TokenLaunchRequest {
   name: string;
@@ -26,6 +29,7 @@ interface TokenLaunchResponse {
 // Bags API configuration
 const BAGS_API_KEY = process.env.BAGS_API_KEY;
 const BAGS_API_BASE_URL = 'https://public-api-v2.bags.fm/api/v1';
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 
 if (!BAGS_API_KEY) {
   console.error('❌ API: BAGS_API_KEY environment variable is missing');
@@ -113,139 +117,69 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Step 2: Get creator's fee wallet from X username
-    console.log('🔍 Step 2: Getting creator fee wallet from @launchonsplitz...');
-    
-    let creatorFeeWallet: string;
+    // Step 2-4: Create fee-share config using Bags SDK (more reliable than REST)
+    console.log('⚙️ Step 2-4: Creating fee-share configuration via SDK...');
+
+    let configKey: string;
+    let configTransactionBase58: string | undefined;
     try {
-      console.log('🔧 API: Getting fee wallet for creator: launchonsplitz');
-      const creatorFeeWalletResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/wallet/twitter?twitterUsername=launchonsplitz`, {
-        method: 'GET',
-        headers: {
-          'x-api-key': API_KEY,
-        }
+      const connection = new Connection(SOLANA_RPC_URL);
+      const sdk = new BagsSDK(API_KEY, connection, 'processed');
+
+      const creatorPublicKey = new PublicKey(body.creatorWallet);
+      const baseMint = new PublicKey(tokenInfo.response.tokenMint);
+      const wsolMint = new PublicKey('So11111111111111111111111111111111111111112');
+
+      const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername('splitzdotfun');
+      console.log('✅ SDK: Platform fee share wallet:', feeShareWallet.toString());
+
+      const feeShareConfig = await sdk.config.createFeeShareConfig({
+        users: [
+          { wallet: creatorPublicKey, bps: 0 },
+          { wallet: feeShareWallet, bps: 10000 },
+        ],
+        payer: creatorPublicKey,
+        baseMint,
+        quoteMint: wsolMint,
       });
 
-      if (!creatorFeeWalletResponse.ok) {
-        const errorText = await creatorFeeWalletResponse.text();
-        throw new Error(`Creator fee wallet lookup failed: ${creatorFeeWalletResponse.status} ${errorText}`);
-      }
+      configKey = feeShareConfig.configKey.toString();
+      console.log('✅ SDK: Fee-share config key:', configKey);
 
-      const creatorFeeWalletData = await creatorFeeWalletResponse.json();
-      creatorFeeWallet = creatorFeeWalletData.response;
-      
-      console.log(`✅ Creator fee wallet: ${creatorFeeWallet}`);
+      if (feeShareConfig.transaction) {
+        configTransactionBase58 = bs58.encode(feeShareConfig.transaction.serialize());
+        console.log('🔧 SDK: Config creation transaction needs signing');
+      } else {
+        console.log('♻️ SDK: Fee-share configuration already exists');
+      }
     } catch (error) {
-      console.error('❌ API: Error in Step 2 (creator fee wallet lookup):', error);
+      console.error('❌ SDK: Error creating fee-share config:', error);
       throw error;
     }
 
-    // Step 3: Get platform fee wallet from Twitter username
-    console.log('🔍 Step 3: Getting platform fee wallet from @splitzdotfun...');
-    
-    let platformWallet: string;
+    // Step 5: Create launch transaction via SDK
+    console.log('🎯 Step 5: Creating launch transaction via SDK...');
+    let launchTransactionBase58: string;
     try {
-      console.log('🔧 API: Getting fee wallet for @splitzdotfun...');
-      const feeWalletResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/wallet/twitter?twitterUsername=splitzdotfun`, {
-        method: 'GET',
-        headers: {
-          'x-api-key': API_KEY,
-        }
+      const connection = new Connection(SOLANA_RPC_URL);
+      const sdk = new BagsSDK(API_KEY, connection, 'processed');
+
+      const creatorPublicKey = new PublicKey(body.creatorWallet);
+      const baseMint = new PublicKey(tokenInfo.response.tokenMint);
+      const initialBuyLamports = Math.floor(body.initialBuyAmount * 1e9);
+
+      const launchTx = await sdk.tokenLaunch.createLaunchTransaction({
+        metadataUrl: tokenInfo.response.tokenMetadata,
+        tokenMint: baseMint,
+        launchWallet: creatorPublicKey,
+        initialBuyLamports,
+        configKey: new PublicKey(configKey),
       });
 
-      if (!feeWalletResponse.ok) {
-        const errorText = await feeWalletResponse.text();
-        throw new Error(`Platform fee wallet lookup failed: ${feeWalletResponse.status} ${errorText}`);
-      }
-
-      const feeWalletData = await feeWalletResponse.json();
-      platformWallet = feeWalletData.response;
-      
-      console.log(`✅ Platform fee wallet: ${platformWallet}`);
+      launchTransactionBase58 = bs58.encode(launchTx.serialize());
+      console.log('✅ SDK: Launch transaction created');
     } catch (error) {
-      console.error('❌ API: Error in Step 3 (platform fee wallet lookup):', error);
-      throw error;
-    }
-
-    // Step 4: Create fee share configuration
-    console.log('⚙️ Step 4: Creating fee share configuration...');
-    
-    let feeShareConfig: any;
-    try {
-      const wsolMint = 'So11111111111111111111111111111111111111112'; // wSOL mint
-      
-      const feeSharePayload = {
-        walletA: creatorFeeWallet,           // Creator's fee wallet (from X username)
-        walletB: platformWallet,             // Platform wallet
-        walletABps: 0,                       // 0% for creator
-        walletBBps: 10000,                   // 100% for platform
-        payer: body.creatorWallet,           // Creator pays for transaction
-        baseMint: tokenInfo.response.tokenMint,
-        quoteMint: wsolMint
-      };
-      
-      console.log('🔧 API: Creating fee share config with payload:', feeSharePayload);
-      console.log('🔧 API: Using endpoint:', `${BAGS_API_BASE_URL}/token-launch/fee-share/create-config`);
-      
-      const feeShareResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/fee-share/create-config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
-        body: JSON.stringify(feeSharePayload)
-      });
-
-      console.log('📊 API: Fee share response status:', feeShareResponse.status);
-      console.log('📊 API: Fee share response headers:', Object.fromEntries(feeShareResponse.headers.entries()));
-
-      if (!feeShareResponse.ok) {
-        const errorText = await feeShareResponse.text();
-        console.error('❌ API: Fee share config error response:', errorText);
-        throw new Error(`Fee share config failed: ${feeShareResponse.status} ${errorText}`);
-      }
-
-      feeShareConfig = await feeShareResponse.json();
-      console.log('✅ Fee share config response:', feeShareConfig);
-      console.log(`✅ Fee share config created with key: ${feeShareConfig.response.configKey}`);
-    } catch (error) {
-      console.error('❌ API: Error in Step 4 (fee share config):', error);
-      throw error;
-    }
-
-    // Step 5: Create launch transaction
-    console.log('🎯 Step 5: Creating launch transaction...');
-    
-    let launchTransaction: any;
-    try {
-      const initialBuyLamports = Math.floor(body.initialBuyAmount * 1e9); // Convert SOL to lamports
-      
-      const launchPayload = {
-        ipfs: tokenInfo.response.tokenMetadata,
-        tokenMint: tokenInfo.response.tokenMint,
-        wallet: body.creatorWallet,
-        initialBuyLamports: initialBuyLamports,
-        configKey: feeShareConfig.response.configKey
-      };
-      
-      console.log('🔧 API: Creating launch transaction with payload:', launchPayload);
-      const launchResponse = await fetch(`${BAGS_API_BASE_URL}/token-launch/create-launch-transaction`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
-        body: JSON.stringify(launchPayload)
-      });
-
-      if (!launchResponse.ok) {
-        const errorText = await launchResponse.text();
-        throw new Error(`Launch transaction failed: ${launchResponse.status} ${errorText}`);
-      }
-
-      launchTransaction = await launchResponse.json();
-      console.log('✅ Launch transaction created successfully!');
-    } catch (error) {
-      console.error('❌ API: Error in Step 5 (launch transaction):', error);
+      console.error('❌ SDK: Error creating launch transaction:', error);
       throw error;
     }
 
@@ -256,16 +190,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       tokenMetadata: tokenInfo.response.tokenMetadata,
       message: 'Token launch setup completed successfully! Ready for wallet signing.',
       transactions: {
-        configTransaction: feeShareConfig.response.tx,
-        launchTransaction: launchTransaction.response,
+        configTransaction: configTransactionBase58,
+        launchTransaction: launchTransactionBase58,
       },
-      needsConfigTransaction: true,
+      needsConfigTransaction: !!configTransactionBase58,
     };
 
     console.log('🎉 Token launch setup completed!');
     console.log(`🪙 Token mint: ${tokenInfo.response.tokenMint}`);
-    console.log(`💰 Fee share: 0% creator (@launchonsplitz), 100% platform (@splitzdotfun)`);
-    console.log(`🔑 Config key: ${feeShareConfig.response.configKey}`);
+    console.log(`💰 Fee share: 0% creator, 100% platform (@splitzdotfun)`);
+    console.log(`🔑 Config key: ${configKey}`);
 
     return NextResponse.json(response);
 
