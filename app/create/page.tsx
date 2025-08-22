@@ -308,7 +308,7 @@ const CreateCoin: React.FC = () => {
       console.log('📤 Sending token data:', tokenData);
       console.log('🔗 Calling API: /api/launch-token-final');
       
-      // Use the new complete launch API with cache busting
+      // Step 1: Create token metadata
       const response = await fetch('/api/launch-token-final?v=' + Date.now(), {
         method: 'POST',
         headers: {
@@ -331,113 +331,139 @@ const CreateCoin: React.FC = () => {
         throw new Error(result.error || 'Token launch failed');
       }
 
-      console.log('✅ Token launch setup completed:', result);
+      console.log('✅ Token metadata created successfully:', result);
       console.log(`🪙 Token mint: ${result.tokenMint}`);
-      console.log(`📝 Needs config transaction: ${result.needsConfigTransaction}`);
+      console.log(`📄 Metadata URI: ${result.tokenMetadata}`);
 
-      // Sign and send transactions
-      const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
-      let signedTransaction: string | undefined;
-
-      // Step 1: Sign config transaction if needed
-      if (result.needsConfigTransaction && result.transactions?.configTransaction) {
-        console.log('🔧 Step 1: Signing config transaction...');
+      // Step 2: Handle fee-share config and launch transaction signing
+      if (result.needsSigning) {
+        console.log('🔐 Step 2: Handling fee-share config and launch transaction signing...');
         
         try {
-          const configTransactionBuffer = bs58.decode(result.transactions.configTransaction);
-          let configTransaction;
+          // Import required modules
+          const { BagsSDK } = await import('@bagsfm/bags-sdk');
+          const { Connection, LAMPORTS_PER_SOL, PublicKey } = await import('@solana/web3.js');
+          const bs58 = await import('bs58');
+
+          // Initialize SDK
+          const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
+          const sdk = new BagsSDK(process.env.NEXT_PUBLIC_BAGS_API_KEY!, connection, 'processed');
+
+          const creatorPublicKey = new PublicKey(publicKey);
+          const initialBuyLamports = Math.floor(parseFloat(formData.initialBuyAmount) * LAMPORTS_PER_SOL);
+          const baseMint = new PublicKey(result.tokenMint);
+          const wsolMint = new PublicKey('So11111111111111111111111111111111111111112');
+
+          console.log('🔍 Getting platform fee share wallet...');
           
+          // Get fee share wallet for platform
+          const platformTwitterUsername = 'splitzdotfun';
+          const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(platformTwitterUsername);
+          console.log(`✅ Platform fee wallet: ${feeShareWallet.toString()}`);
+
+          // Create fee share configuration
+          console.log('⚙️ Creating fee share configuration...');
+          const feeShareConfig = await sdk.config.createFeeShareConfig({
+            users: [
+              {
+                wallet: creatorPublicKey,
+                bps: 0, // 0% for creator
+              },
+              {
+                wallet: feeShareWallet,
+                bps: 10000, // 100% for platform
+              },
+            ],
+            payer: creatorPublicKey,
+            baseMint: baseMint,
+            quoteMint: wsolMint,
+          });
+
+          console.log(`✅ Fee share config created with key: ${feeShareConfig.configKey.toString()}`);
+
+          // Sign config transaction if needed
+          if (feeShareConfig.transaction) {
+            console.log('🔧 Signing config transaction...');
+            const configTransaction = feeShareConfig.transaction;
+            const signedConfigTransaction = await signAndSendTransaction(configTransaction);
+            console.log('✅ Config transaction signed and sent:', signedConfigTransaction);
+            
+            // Wait for config transaction to be confirmed
+            console.log('⏳ Waiting for config transaction confirmation...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          } else {
+            console.log('♻️ Config already exists, reusing existing configuration');
+          }
+
+          // Create and sign launch transaction
+          console.log('🎯 Creating launch transaction...');
+          const launchTransaction = await sdk.tokenLaunch.createLaunchTransaction({
+            metadataUrl: result.tokenMetadata,
+            tokenMint: baseMint,
+            launchWallet: creatorPublicKey,
+            initialBuyLamports: initialBuyLamports,
+            configKey: feeShareConfig.configKey,
+          });
+
+          console.log('🔐 Signing launch transaction...');
+          const signedLaunchTransaction = await signAndSendTransaction(launchTransaction);
+          console.log('✅ Launch transaction signed and sent:', signedLaunchTransaction);
+
+          console.log('🎉 Token launched successfully!');
+          console.log(`Token: ${result.tokenMint}`);
+          console.log(`Contract Address: ${result.tokenMint}`);
+          console.log(`Transaction: ${signedLaunchTransaction}`);
+          console.log('💰 Token launched with shared fees: 100% platform fees');
+          
+          // Save token data to database
           try {
-            configTransaction = Transaction.from(configTransactionBuffer);
+            console.log('💾 Saving token data to database...');
+            
+            const royaltyEarners = [
+              {
+                social_or_wallet: "@splitzdotfun",
+                role: "Platform",
+                percentage: 100
+              }
+            ];
+            
+            const saveResponse = await fetch('/api/save-token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                deployer_user_id: null, // Will be set when user system is implemented
+                deployer_social_or_wallet: publicKey,
+                name: formData.name,
+                symbol: formData.symbol,
+                description: formData.description,
+                contract_address: result.tokenMint,
+                social_link: formData.twitterUrl || null,
+                image_url: formData.imageUrl || null,
+                banner_url: null, // Not implemented yet
+                metadata_url: result.tokenMetadata,
+                royalty_earners: royaltyEarners
+              })
+            });
+            
+            if (saveResponse.ok) {
+              console.log('✅ Token data saved to database');
+            } else {
+              console.warn('⚠️ Failed to save token data to database');
+            }
           } catch (error) {
-            configTransaction = VersionedTransaction.deserialize(configTransactionBuffer);
+            console.warn('⚠️ Error saving token data:', error);
           }
           
-          signedTransaction = await signAndSendTransaction(configTransaction);
-          console.log('✅ Config transaction signed and sent:', signedTransaction);
-          
-          // Wait for config transaction to be confirmed
-          console.log('⏳ Waiting for config transaction confirmation...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Redirect to token page after successful launch
+          window.location.href = `/token/${result.tokenMint}`;
           
         } catch (error) {
-          console.error('❌ Failed to sign config transaction:', error);
-          throw new Error('Failed to sign config transaction');
+          console.error('❌ Failed to handle transaction signing:', error);
+          throw new Error(`Failed to handle transaction signing: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
-
-      // Step 2: Sign launch transaction
-      console.log('🚀 Step 2: Signing launch transaction...');
-      
-      if (result.transactions?.launchTransaction) {
-        try {
-          const launchTransactionBuffer = bs58.decode(result.transactions.launchTransaction);
-          let launchTransaction;
-          
-          try {
-            launchTransaction = Transaction.from(launchTransactionBuffer);
-          } catch (error) {
-            launchTransaction = VersionedTransaction.deserialize(launchTransactionBuffer);
-          }
-          
-          signedTransaction = await signAndSendTransaction(launchTransaction);
-          console.log('✅ Launch transaction signed and sent:', signedTransaction);
-          
-        } catch (error) {
-          console.error('❌ Failed to sign launch transaction:', error);
-          throw new Error('Failed to sign launch transaction');
-        }
-      }
-
-      console.log('🎉 Token launched successfully!');
-      console.log(`Token: ${result.tokenMint}`);
-      console.log(`Contract Address: ${result.tokenMint}`);
-      console.log(`Transaction: ${signedTransaction}`);
-      console.log('💰 Token launched with shared fees: 100% platform fees');
-      
-      // Save token data to database
-      try {
-        console.log('💾 Saving token data to database...');
-        
-        const royaltyEarners = [
-          {
-            social_or_wallet: "@splitzdotfun",
-            role: "Platform",
-            percentage: 100
-          }
-        ];
-        
-        const saveResponse = await fetch('/api/save-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            deployer_user_id: null, // Will be set when user system is implemented
-            deployer_social_or_wallet: publicKey,
-            name: formData.name,
-            symbol: formData.symbol,
-            description: formData.description,
-            contract_address: result.tokenMint,
-            social_link: formData.twitterUrl || null,
-            image_url: formData.imageUrl || null,
-            banner_url: null, // Not implemented yet
-            metadata_url: result.tokenMetadata,
-            royalty_earners: royaltyEarners
-          })
-        });
-        
-        if (saveResponse.ok) {
-          console.log('✅ Token data saved to database');
-        } else {
-          console.warn('⚠️ Failed to save token data to database');
-        }
-      } catch (error) {
-        console.warn('⚠️ Error saving token data:', error);
-      }
-      
-      // Redirect to token page after successful launch
-      window.location.href = `/token/${result.tokenMint}`;
       
     } catch (error) {
       console.error('❌ Failed to launch token:', error);

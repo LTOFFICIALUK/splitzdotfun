@@ -45,11 +45,7 @@ interface TokenLaunchResponse {
   tokenMetadata: string;
   message: string;
   error?: string;
-  transactions?: {
-    configTransaction?: string; // Base58 encoded
-    launchTransaction?: string; // Base58 encoded
-  };
-  needsConfigTransaction?: boolean;
+  needsSigning?: boolean;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -84,25 +80,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const connection = new Connection(SOLANA_RPC_URL!);
     const sdk = new BagsSDK(BAGS_API_KEY!, connection, 'processed');
 
-    const creatorPublicKey = new PublicKey(body.creatorWallet);
-    const initialBuyLamports = Math.floor(body.initialBuyAmount * LAMPORTS_PER_SOL);
-
-    console.log('🚀 Starting complete token launch process...');
+    console.log('🚀 Starting token launch process...');
     console.log(`📝 Token: ${body.name} (${body.symbol})`);
-    console.log(`💰 Initial buy: ${body.initialBuyAmount} SOL (${initialBuyLamports} lamports)`);
+    console.log(`💰 Initial buy: ${body.initialBuyAmount} SOL`);
     console.log(`👤 Creator: ${body.creatorWallet}`);
 
-    // Declare variables that will be used throughout
-    let tokenInfo: any;
-    let feeShareWallet: any;
-    let feeShareConfig: any;
-    let launchTransaction: any;
-
-    // Step 1: Create token info and metadata
+    // Step 1: Create token info and metadata (following Bags docs exactly)
     console.log('📝 Step 1: Creating token info and metadata...');
     
     try {
-      // Fetch image from URL to blob
+      // Fetch image from URL to blob (following Bags docs)
       console.log('🖼️ API: Fetching image from URL...');
       const imageResponse = await fetch(body.imageUrl);
       if (!imageResponse.ok) {
@@ -111,9 +98,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const imageBlob = await imageResponse.blob();
       console.log('✅ API: Image fetched successfully, size:', imageBlob.size);
 
-      // Create token info and metadata using Bags SDK
+      // Create token info and metadata using Bags SDK (following docs exactly)
       console.log('🔧 API: Creating token info and metadata...');
-      tokenInfo = await sdk.tokenLaunch.createTokenInfoAndMetadata({
+      const tokenInfo = await sdk.tokenLaunch.createTokenInfoAndMetadata({
         image: imageBlob,
         name: body.name,
         symbol: body.symbol.toUpperCase().replace('$', ''),
@@ -125,94 +112,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('✅ Token info and metadata created successfully!');
       console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
       console.log(`📄 Metadata URI: ${tokenInfo.tokenMetadata}`);
+
+      // Return the token info for frontend to handle transaction signing
+      const response: TokenLaunchResponse = {
+        success: true,
+        tokenMint: tokenInfo.tokenMint,
+        tokenMetadata: tokenInfo.tokenMetadata,
+        message: 'Token metadata created successfully! Now we need to launch the token with shared fees using wallet signing.',
+        needsSigning: true
+      };
+
+      console.log('🎉 Token metadata creation completed!');
+      console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
+      console.log(`📄 Metadata URI: ${tokenInfo.tokenMetadata}`);
+      console.log('💰 Next step: Frontend will handle fee-share config and launch transaction signing');
+
+      return NextResponse.json(response);
+
     } catch (error) {
-      console.error('❌ API: Error in Step 1 (token info creation):', error);
+      console.error('❌ API: Error in token info creation:', error);
       throw error;
     }
-
-    // Step 2: Get fee share wallet for platform
-    console.log('🔍 Step 2: Getting platform fee share wallet...');
-    
-    try {
-      const platformTwitterUsername = 'splitzdotfun';
-      console.log('🔧 API: Getting fee share wallet for:', platformTwitterUsername);
-      feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(platformTwitterUsername);
-      
-      console.log(`✅ Platform fee wallet: ${feeShareWallet.toString()}`);
-    } catch (error) {
-      console.error('❌ API: Error in Step 2 (fee share wallet):', error);
-      throw error;
-    }
-
-    // Step 3: Create fee share configuration
-    console.log('⚙️ Step 3: Creating fee share configuration...');
-    
-    try {
-      const baseMint = new PublicKey(tokenInfo.tokenMint);
-      const wsolMint = new PublicKey('So11111111111111111111111111111111111111112'); // wSOL mint
-
-      console.log('🔧 API: Creating fee share config...');
-      feeShareConfig = await sdk.config.createFeeShareConfig({
-        users: [
-          {
-            wallet: creatorPublicKey,
-            bps: 0, // 0% for creator
-          },
-          {
-            wallet: feeShareWallet,
-            bps: 10000, // 100% for platform
-          },
-        ],
-        payer: creatorPublicKey,
-        baseMint: baseMint,
-        quoteMint: wsolMint,
-      });
-
-      console.log(`✅ Fee share config created with key: ${feeShareConfig.configKey.toString()}`);
-    } catch (error) {
-      console.error('❌ API: Error in Step 3 (fee share config):', error);
-      throw error;
-    }
-
-    // Step 4: Create launch transaction
-    console.log('🎯 Step 4: Creating launch transaction...');
-    
-    try {
-      const baseMint = new PublicKey(tokenInfo.tokenMint);
-      launchTransaction = await sdk.tokenLaunch.createLaunchTransaction({
-        metadataUrl: tokenInfo.tokenMetadata,
-        tokenMint: baseMint,
-        launchWallet: creatorPublicKey,
-        initialBuyLamports: initialBuyLamports,
-        configKey: feeShareConfig.configKey,
-      });
-
-      console.log('✅ Launch transaction created successfully!');
-    } catch (error) {
-      console.error('❌ API: Error in Step 4 (launch transaction):', error);
-      throw error;
-    }
-
-    // Step 5: Return the transactions for frontend signing
-    const response: TokenLaunchResponse = {
-      success: true,
-      tokenMint: tokenInfo.tokenMint,
-      tokenMetadata: tokenInfo.tokenMetadata,
-      message: 'Token launch setup completed successfully! Ready for wallet signing.',
-      transactions: {
-        configTransaction: feeShareConfig.transaction ? bs58.encode(feeShareConfig.transaction.serialize()) : undefined,
-        launchTransaction: bs58.encode(launchTransaction.serialize()),
-      },
-      needsConfigTransaction: !!feeShareConfig.transaction,
-    };
-
-    console.log('🎉 Token launch setup completed!');
-    console.log(`🪙 Token mint: ${tokenInfo.tokenMint}`);
-    console.log(`💰 Fee share: 0% creator, 100% platform`);
-    console.log(`🔑 Config key: ${feeShareConfig.configKey.toString()}`);
-    console.log(`📝 Needs config transaction: ${!!feeShareConfig.transaction}`);
-
-    return NextResponse.json(response);
 
   } catch (error) {
     console.error('❌ Token launch error:', error);
