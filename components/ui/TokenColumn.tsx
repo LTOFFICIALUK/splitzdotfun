@@ -64,7 +64,7 @@ const TokenColumn: React.FC<TokenColumnProps> = ({
         {tokens.map((token) => (
           <div
             key={token.id}
-            className="bg-background-dark border-b border-background-elevated p-3 hover:bg-background-elevated transition-all duration-200 cursor-pointer"
+            className="bg-background-card border-b border-background-elevated p-3 hover:bg-background-elevated transition-all duration-200 cursor-pointer"
             onClick={() => alert(`Viewing ${token.name} details... (This is a stub)`)}
           >
             <div className="flex items-start space-x-2">
