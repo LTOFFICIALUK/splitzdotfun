@@ -339,35 +339,8 @@ const CreateCoin: React.FC = () => {
       const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
       let signedTransaction: string | undefined;
 
-      // Step 2a: Sign config transaction if needed
-      if (result.needsConfigTransaction && result.transactions?.configTransaction) {
-        console.log('🔧 Step 2a: Signing config transaction...');
-        
-        try {
-          const configTransactionBuffer = bs58.decode(result.transactions.configTransaction);
-          let configTransaction;
-          
-          try {
-            configTransaction = Transaction.from(configTransactionBuffer);
-          } catch (error) {
-            configTransaction = VersionedTransaction.deserialize(configTransactionBuffer);
-          }
-          
-          signedTransaction = await signAndSendTransaction(configTransaction);
-          console.log('✅ Config transaction signed and sent:', signedTransaction);
-          
-          // Wait for config transaction to be confirmed
-          console.log('⏳ Waiting for config transaction confirmation...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-        } catch (error) {
-          console.error('❌ Failed to sign config transaction:', error);
-          throw new Error('Failed to sign config transaction');
-        }
-      }
-
-      // Step 2b: Sign launch transaction
-      console.log('🚀 Step 2b: Signing launch transaction...');
+      // Step 2: Sign launch transaction
+      console.log('🚀 Step 2: Signing launch transaction...');
       
       if (result.transactions?.launchTransaction) {
         try {
