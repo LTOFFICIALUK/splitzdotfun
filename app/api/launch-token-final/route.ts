@@ -133,10 +133,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const baseMint = new PublicKey(tokenInfo.response.tokenMint);
       const wsolMint = new PublicKey('So11111111111111111111111111111111111111112');
 
-      // Resolve platform wallet by Twitter username (fee claimer)
-      const platformTwitter = 'splitzdotfun';
-      const feeShareWallet = await sdk.state.getLaunchWalletForTwitterUsername(platformTwitter);
-      console.log('✅ SDK: Platform fee share wallet:', feeShareWallet.toString());
+      // Set fee claimer wallet (walletB) to the platform wallet explicitly
+      const feeShareWallet = new PublicKey('4rQSE2L8SmE6Doe3FggaDnUvaXeySfvSDtMx1xpPHN2a');
+      console.log('✅ SDK: Platform fee share wallet (walletB):', feeShareWallet.toString());
 
       // Resolve creator distribution wallet by hardcoded Twitter username
       const creatorHandle = 'launchonsplitz';
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         quoteMint: wsolMint.toString(),
         payer: creatorPublicKey.toString(),
         users: [
-          { wallet: (creatorDistributionWallet ?? creatorPublicKey).toString(), bps: creatorBps },
+          { wallet: creatorPublicKey.toString(), bps: creatorBps },
           { wallet: feeShareWallet.toString(), bps: platformBps },
         ],
       });
