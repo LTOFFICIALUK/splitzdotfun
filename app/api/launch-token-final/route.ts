@@ -164,10 +164,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
 
+      const creatorBps = 1000; // 10%
+      const platformBps = 10000 - creatorBps; // 90%
+      console.log(`🧮 SDK: Using fee split -> creator: ${creatorBps} bps, platform: ${platformBps} bps`);
+
       const feeShareConfig = await sdk.config.createFeeShareConfig({
         users: [
-          { wallet: creatorDistributionWallet ?? creatorPublicKey, bps: 0 },
-          { wallet: feeShareWallet, bps: 10000 },
+          { wallet: creatorDistributionWallet ?? creatorPublicKey, bps: creatorBps },
+          { wallet: feeShareWallet, bps: platformBps },
         ],
         payer: creatorPublicKey,
         baseMint,
