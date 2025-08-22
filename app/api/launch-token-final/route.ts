@@ -117,7 +117,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Step 2: Either create fee-share config (default) or bypass if env flag set
-    let configKey: string | undefined;
+    let configKey: PublicKey | undefined;
     let configTransactionBase58: string | undefined;
     
     if (BYPASS_FEE_SHARE) {
@@ -162,8 +162,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           quoteMint: wsolMint,
         });
 
-        configKey = feeShareConfig.configKey.toString();
-        console.log('✅ SDK: Fee-share config key:', configKey);
+        configKey = feeShareConfig.configKey;
+        console.log('✅ SDK: Fee-share config key:', configKey?.toString());
 
         if (feeShareConfig.transaction) {
           configTransactionBase58 = bs58.encode(feeShareConfig.transaction.serialize());
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
 
       // Step 3: If config creation transaction is required, return it first and defer launch creation
-      if (configTransactionBase58 && !configKey) {
+      if (configTransactionBase58 && configKey === undefined) {
         const response: TokenLaunchResponse = {
           success: true,
           tokenMint: tokenInfo.response.tokenMint,
@@ -207,12 +207,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const launchArgs: any = {
         metadataUrl: tokenInfo.response.tokenMetadata,
-        tokenMint: baseMint.toString(),
+        tokenMint: baseMint,
         launchWallet: creatorPublicKey,
         initialBuyLamports,
       };
       if (!BYPASS_FEE_SHARE && configKey) {
-        launchArgs.configKey = new PublicKey(configKey);
+        launchArgs.configKey = configKey;
       }
       const launchTx = await sdk.tokenLaunch.createLaunchTransaction(launchArgs);
 
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('💰 Shared fees bypassed (env).');
     } else {
       console.log(`💰 Fee share: 10% creator, 90% platform (@splitzdotfun)`);
-      console.log(`🔑 Config key: ${configKey}`);
+      console.log(`🔑 Config key: ${configKey?.toString()}`);
     }
 
     return NextResponse.json(response);
