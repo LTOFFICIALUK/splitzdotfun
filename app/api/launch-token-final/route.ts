@@ -30,6 +30,7 @@ interface TokenLaunchResponse {
 const BAGS_API_KEY = process.env.BAGS_API_KEY;
 const BAGS_API_BASE_URL = 'https://public-api-v2.bags.fm/api/v1';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+const BYPASS_FEE_SHARE = (process.env.BAGS_BYPASS_FEE_SHARE || 'true') === 'true';
 
 if (!BAGS_API_KEY) {
   console.error('❌ API: BAGS_API_KEY environment variable is missing');
@@ -86,10 +87,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       formData.append('image', imageBlob, 'token-image.png');
       formData.append('name', body.name);
       formData.append('symbol', body.symbol.toUpperCase().replace('$', ''));
-      formData.append('description', body.description);
-      if (body.twitterUrl) {
-        formData.append('twitter', body.twitterUrl);
-      }
+      const descriptionWithHandle = `${body.description}\nCreator: @launchonsplitz`;
+      formData.append('description', descriptionWithHandle);
+      // Intentionally do not set twitter link; handle is embedded in description
       formData.append('website', `https://splitz.fun/token/placeholder`);
 
       // Create token info and metadata using Bags API
@@ -116,13 +116,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw error;
     }
 
-    // Step 2: Get creator's fee wallet from X username
-    // Step 2-4: Create fee-share config using Bags SDK (more reliable than REST)
-    console.log('⚙️ Step 2-4: Creating fee-share configuration via SDK...');
-
+    // Step 2: Either create fee-share config (default) or bypass if env flag set
     let configKey: string | undefined;
     let configTransactionBase58: string | undefined;
-    let creatorDistributionWallet: PublicKey | null = null;
+    if (BYPASS_FEE_SHARE) {
+      console.log('⏭️ Bypassing shared fees due to BYPASS_FEE_SHARE=true. Proceeding to launch tx.');
+    } else {
+      console.log('⚙️ Step 2-4: Creating fee-share configuration via SDK...');
+
     const creatorBps = 1000; // 10%
     const platformBps = 10000 - creatorBps; // 90%
     try {
@@ -137,14 +138,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const feeShareWallet = new PublicKey('4rQSE2L8SmE6Doe3FggaDnUvaXeySfvSDtMx1xpPHN2a');
       console.log('✅ SDK: Platform fee share wallet (walletB):', feeShareWallet.toString());
 
-      // Resolve creator distribution wallet by hardcoded Twitter username
-      const creatorHandle = 'launchonsplitz';
-      try {
-        creatorDistributionWallet = await sdk.state.getLaunchWalletForTwitterUsername(creatorHandle);
-        console.log(`✅ SDK: Creator fee share wallet (@${creatorHandle}):`, creatorDistributionWallet.toString());
-      } catch (e) {
-        throw new Error(`Could not resolve creator wallet from Twitter handle @${creatorHandle}. Please register on Bags.`);
-      }
       console.log(`🧮 SDK: Using fee split -> creator: ${creatorBps} bps, platform: ${platformBps} bps`);
 
       console.log('🔧 SDK: Creating fee-share config with:', {
@@ -182,25 +175,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw error;
     }
 
-    // Step 5: If config creation transaction is required, return it first and defer launch creation
-    if (configTransactionBase58 && !configKey) {
-      const response: TokenLaunchResponse = {
-        success: true,
-        tokenMint: tokenInfo.response.tokenMint,
-        tokenMetadata: tokenInfo.response.tokenMetadata,
-        message: 'Configuration transaction created. Sign this first, then request the launch transaction.',
-        transactions: {
-          configTransaction: configTransactionBase58,
-        },
-        needsConfigTransaction: true,
-      };
+    // Step 3: If config creation transaction is required, return it first and defer launch creation
+    if (!BYPASS_FEE_SHARE) {
+      if (configTransactionBase58 && !configKey) {
+        const response: TokenLaunchResponse = {
+          success: true,
+          tokenMint: tokenInfo.response.tokenMint,
+          tokenMetadata: tokenInfo.response.tokenMetadata,
+          message: 'Configuration transaction created. Sign this first, then request the launch transaction.',
+          transactions: {
+            configTransaction: configTransactionBase58,
+          },
+          needsConfigTransaction: true,
+        };
 
-      console.log('🔁 Returning config transaction only; awaiting client to request launch tx');
-      return NextResponse.json(response);
+        console.log('🔁 Returning config transaction only; awaiting client to request launch tx');
+        return NextResponse.json(response);
+      }
     }
 
-    // Step 5b: Config exists; create launch transaction now
-    console.log('🎯 Step 5: Creating launch transaction via SDK...');
+    }
+    // Step 3b: Create launch transaction now
+    console.log('🎯 Creating launch transaction via SDK...');
     let launchTransactionBase58: string;
     try {
       const connection = new Connection(SOLANA_RPC_URL);
@@ -210,13 +206,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const baseMint = new PublicKey(tokenInfo.response.tokenMint);
       const initialBuyLamports = Math.floor(body.initialBuyAmount * 1e9);
 
-      const launchTx = await sdk.tokenLaunch.createLaunchTransaction({
+      const launchArgs: any = {
         metadataUrl: tokenInfo.response.tokenMetadata,
         tokenMint: baseMint,
         launchWallet: creatorPublicKey,
         initialBuyLamports,
-        configKey: new PublicKey(configKey!),
-      });
+      };
+      if (!BYPASS_FEE_SHARE && configKey) {
+        launchArgs.configKey = new PublicKey(configKey);
+      }
+      const launchTx = await sdk.tokenLaunch.createLaunchTransaction(launchArgs);
 
       launchTransactionBase58 = bs58.encode(launchTx.serialize());
       console.log('✅ SDK: Launch transaction created');
@@ -230,18 +229,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: true,
       tokenMint: tokenInfo.response.tokenMint,
       tokenMetadata: tokenInfo.response.tokenMetadata,
-      message: 'Token launch setup completed successfully! Ready for wallet signing.',
+      message: BYPASS_FEE_SHARE ? 'Token launch setup completed (no shared fees).' : 'Token launch setup completed successfully! Ready for wallet signing.',
       transactions: {
-        configTransaction: configTransactionBase58,
+        configTransaction: BYPASS_FEE_SHARE ? undefined : configTransactionBase58,
         launchTransaction: launchTransactionBase58,
       },
-      needsConfigTransaction: false,
+      needsConfigTransaction: BYPASS_FEE_SHARE ? false : false,
     };
 
     console.log('🎉 Token launch setup completed!');
     console.log(`🪙 Token mint: ${tokenInfo.response.tokenMint}`);
-    console.log(`💰 Fee share: 0% creator, 100% platform (@splitzdotfun)`);
-    console.log(`🔑 Config key: ${configKey}`);
+    if (BYPASS_FEE_SHARE) {
+      console.log('💰 Shared fees bypassed (env).');
+    } else {
+      console.log(`💰 Fee share: 10% creator, 90% platform (@splitzdotfun)`);
+      console.log(`🔑 Config key: ${configKey}`);
+    }
 
     return NextResponse.json(response);
 
