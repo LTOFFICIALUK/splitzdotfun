@@ -202,6 +202,9 @@ jobs:
 
         async function getClaimTransaction(position) {
           try {
+            console.log(`🔍 Getting pool config for feeClaimer: ${position.feeClaimer}`);
+            console.log(`🔍 Token mint: ${position.tokenMint}`);
+            
             // For royalty earners, we need to get the pool config first
             const poolConfigResponse = await fetch(
               'https://public-api-v2.bags.fm/api/v1/state/pool-config-keys-by-fee-claimer-vaults',
@@ -218,12 +221,17 @@ jobs:
             );
             
             if (!poolConfigResponse.ok) {
-              console.error(`Pool config error: ${poolConfigResponse.status}`);
+              console.error(`❌ Pool config error: ${poolConfigResponse.status}`);
+              const errorText = await poolConfigResponse.text();
+              console.error(`❌ Error details: ${errorText}`);
               return null;
             }
             
             const poolConfigData = await poolConfigResponse.json();
             const poolConfigs = poolConfigData.response || [];
+            
+            console.log(`📊 Found ${poolConfigs.length} pool configs for feeClaimer ${position.feeClaimer}`);
+            console.log(`🔍 Looking for token mint: ${position.tokenMint}`);
             
             // Find the pool config for this specific token
             const tokenPoolConfig = poolConfigs.find(config => 
@@ -231,9 +239,12 @@ jobs:
             );
             
             if (!tokenPoolConfig) {
-              console.warn(`No pool config found for token ${position.tokenMint}`);
+              console.warn(`⚠️ No pool config found for token ${position.tokenMint}`);
+              console.log(`📋 Available token mints:`, poolConfigs.map(c => c.tokenMint));
               return null;
             }
+            
+            console.log(`✅ Found pool config for token ${position.tokenMint}`);
             
             // Generate claim transaction with the pool config data
             const response = await fetch(
@@ -341,6 +352,9 @@ jobs:
               try {
                 console.log(`💰 Testing wallet: ${wallet.earner_wallet} for token: ${wallet.token_name}`);
                 console.log(`💰 Claiming fees for wallet ${wallet.earner_wallet} and token ${wallet.token_mint}`);
+                console.log(`🔍 Token details: ${wallet.token_name} (${wallet.token_mint})`);
+                console.log(`👤 Wallet: ${wallet.earner_wallet}`);
+                console.log(`📊 Percentage: ${wallet.percentage}%`);
                 
                 // Get claim transaction for this wallet
                 const claimTransaction = await getClaimTransaction({
