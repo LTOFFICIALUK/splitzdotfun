@@ -1,0 +1,304 @@
+name: Claim Fees from Bags
+
+on:
+  schedule:
+    # Run every hour
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+# Prevent overlapping runs
+concurrency:
+  group: claim-fees
+  cancel-in-progress: false
+
+jobs:
+  claim-fees:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run fee claiming
+      env:
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        BAGS_API_KEY: ${{ secrets.BAGS_API_KEY }}
+        SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        TREASURY_WALLET_ADDRESS: ${{ secrets.TREASURY_WALLET_ADDRESS }}
+        TREASURY_PRIVATE_KEY: ${{ secrets.TREASURY_PRIVATE_KEY }}
+        SOLANA_COMMITMENT: ${{ secrets.SOLANA_COMMITMENT }}
+      run: |
+        # Create a temporary script to run the fee claiming
+        cat > claim-fees.js << 'EOF'
+        const { createClient } = require('@supabase/supabase-js');
+        const fetch = require('node-fetch');
+        const { Connection, Keypair, Transaction, PublicKey } = require('@solana/web3.js');
+        const bs58 = require('bs58');
+
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+
+        const connection = new Connection(process.env.SOLANA_RPC_URL, process.env.SOLANA_COMMITMENT || 'confirmed');
+        const treasuryKeypair = Keypair.fromSecretKey(bs58.decode(process.env.TREASURY_PRIVATE_KEY));
+        const treasuryWallet = new PublicKey(process.env.TREASURY_WALLET_ADDRESS);
+
+        async function getClaimablePositions() {
+          try {
+            const response = await fetch(
+              'https://public-api-v2.bags.fm/api/v1/fee/claimable-positions',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': process.env.BAGS_API_KEY
+                },
+                body: JSON.stringify({
+                  wallet: process.env.TREASURY_WALLET_ADDRESS
+                })
+              }
+            );
+            
+            if (!response.ok) {
+              throw new Error(`Bags API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            return data.response || [];
+          } catch (error) {
+            console.error('Error fetching claimable positions:', error);
+            return [];
+          }
+        }
+
+        async function getClaimTransaction(position) {
+          try {
+            const response = await fetch(
+              'https://public-api-v2.bags.fm/api/v1/fee/claim-transaction',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': process.env.BAGS_API_KEY
+                },
+                body: JSON.stringify({
+                  wallet: process.env.TREASURY_WALLET_ADDRESS,
+                  position: position
+                })
+              }
+            );
+            
+            if (!response.ok) {
+              throw new Error(`Bags API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            return data.response;
+          } catch (error) {
+            console.error('Error getting claim transaction:', error);
+            return null;
+          }
+        }
+
+        async function sendAndConfirmTransaction(transactionData) {
+          try {
+            // Deserialize the transaction
+            const transaction = Transaction.from(Buffer.from(transactionData, 'base64'));
+            
+            // Sign the transaction
+            transaction.sign(treasuryKeypair);
+            
+            // Send the transaction
+            const signature = await connection.sendTransaction(transaction, [treasuryKeypair], {
+              skipPreflight: true,
+              maxRetries: 3
+            });
+            
+            console.log(`📤 Transaction sent: ${signature}`);
+            
+            // Wait for confirmation
+            const confirmation = await connection.confirmTransaction(signature, process.env.SOLANA_COMMITMENT || 'confirmed');
+            
+            if (confirmation.value.err) {
+              throw new Error(`Transaction failed: ${confirmation.value.err}`);
+            }
+            
+            console.log(`✅ Transaction confirmed: ${signature}`);
+            return signature;
+          } catch (error) {
+            console.error('Error sending transaction:', error);
+            return null;
+          }
+        }
+
+        async function claimFees() {
+          try {
+            console.log('🔄 Starting fee claiming job...');
+            
+            // Record job start
+            const { data: jobRun, error: jobError } = await supabase
+              .from('job_runs')
+              .insert({
+                job_name: 'claim-fees',
+                started_at: new Date().toISOString(),
+                status: 'running'
+              })
+              .select()
+              .single();
+
+            if (jobError) {
+              console.error('❌ Failed to create job run:', jobError);
+              process.exit(1);
+            }
+
+            const jobRunId = jobRun.id;
+            let claimsProcessed = 0;
+            let totalClaimedLamports = 0;
+            let startTime = Date.now();
+
+            // Get claimable positions
+            const claimablePositions = await getClaimablePositions();
+            console.log(`📊 Found ${claimablePositions.length} claimable positions`);
+
+            for (const position of claimablePositions) {
+              try {
+                console.log(`💰 Processing position for token: ${position.baseMint}`);
+                
+                // Get claim transaction
+                const claimTransaction = await getClaimTransaction(position);
+                if (!claimTransaction) {
+                  console.warn(`⚠️ No claim transaction generated for position`);
+                  continue;
+                }
+
+                // Send and confirm transaction
+                const signature = await sendAndConfirmTransaction(claimTransaction);
+                if (!signature) {
+                  console.error(`❌ Failed to send claim transaction`);
+                  continue;
+                }
+
+                // Calculate total claimed amount
+                let claimedAmount = 0;
+                if (position.virtualPoolClaimableAmount) {
+                  claimedAmount += parseInt(position.virtualPoolClaimableAmount);
+                }
+                if (position.dammPoolClaimableAmount) {
+                  claimedAmount += parseInt(position.dammPoolClaimableAmount);
+                }
+                if (position.isCustomFeeVault && position.customFeeVaultBalance) {
+                  const customFeeVaultBalance = parseInt(position.customFeeVaultBalance);
+                  const bps = position.customFeeVaultBps;
+                  claimedAmount += (customFeeVaultBalance * bps) / 10000;
+                }
+
+                // Map baseMint to our internal token_id
+                const { data: tokenData, error: tokenError } = await supabase
+                  .from('tokens')
+                  .select('id')
+                  .eq('contract_address', position.baseMint)
+                  .single();
+
+                if (tokenError || !tokenData) {
+                  console.warn(`⚠️ Token not found in database for baseMint: ${position.baseMint}`);
+                  continue;
+                }
+
+                // Record claim in database
+                const { data: bagsClaim, error: claimError } = await supabase
+                  .from('bags_claims')
+                  .insert({
+                    token_id: tokenData.id, // Use our internal UUID
+                    treasury_wallet: process.env.TREASURY_WALLET_ADDRESS,
+                    amount_lamports: claimedAmount,
+                    tx_signature: signature,
+                    status: 'confirmed',
+                    occurred_at: new Date().toISOString()
+                  })
+                  .select()
+                  .single();
+
+                if (claimError) {
+                  console.error(`❌ Failed to record claim:`, claimError);
+                  continue;
+                }
+
+                // Mirror to fee accrual ledger
+                await supabase
+                  .from('fee_accrual_ledger')
+                  .insert({
+                    token_id: tokenData.id, // Use our internal UUID
+                    entry_type: 'CLAIM_FROM_BAGS',
+                    beneficiary_kind: 'TREASURY',
+                    beneficiary_wallet: process.env.TREASURY_WALLET_ADDRESS,
+                    amount_lamports: claimedAmount,
+                    related_bags_claim_id: bagsClaim.id,
+                    external_tx_signature: signature,
+                    occurred_at: new Date().toISOString()
+                  });
+
+                claimsProcessed++;
+                totalClaimedLamports += claimedAmount;
+                
+                console.log(`✅ Claimed ${claimedAmount / 1e9} SOL for token ${position.baseMint}`);
+
+              } catch (positionError) {
+                console.error(`❌ Error processing position for ${position.baseMint}:`, positionError);
+                continue;
+              }
+            }
+
+            // Update job run with success
+            await supabase
+              .from('job_runs')
+              .update({
+                finished_at: new Date().toISOString(),
+                status: 'success',
+                claims_processed: claimsProcessed,
+                view_refresh_ms: Date.now() - startTime
+              })
+              .eq('id', jobRunId);
+
+            console.log(`✅ Fee claiming completed successfully!`);
+            console.log(`📊 Claims processed: ${claimsProcessed}`);
+            console.log(`💰 Total claimed: ${totalClaimedLamports / 1e9} SOL`);
+            console.log(`⏱️ Duration: ${Date.now() - startTime}ms`);
+
+          } catch (error) {
+            console.error('❌ Fee claiming failed:', error);
+            process.exit(1);
+          }
+        }
+
+        claimFees();
+        EOF
+
+        # Install additional dependencies
+        npm install @solana/web3.js bs58
+
+        # Run the script
+        node claim-fees.js
+          
+    - name: Handle success
+      if: success()
+      run: |
+        echo "✅ Fee claiming completed successfully"
+        echo "Timestamp: $(date)"
+        
+    - name: Handle failure
+      if: failure()
+      run: |
+        echo "❌ Fee claiming failed"
+        echo "Timestamp: $(date)"
+        # You can add notifications here (Slack, Discord, etc.)
