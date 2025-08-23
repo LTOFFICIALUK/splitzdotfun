@@ -125,15 +125,15 @@ jobs:
               }
             }
 
-            // Add treasury wallet for platform fees
-            feeShareWallets.push({
-              token_id: 'treasury',
-              token_mint: 'treasury',
-              token_name: 'Platform Fees',
-              earner_wallet: process.env.TREASURY_WALLET_ADDRESS,
-              earner_social: 'Platform',
-              percentage: 20
-            });
+            // Add treasury wallet for platform fees (only if you want to claim platform fees)
+            // feeShareWallets.push({
+            //   token_id: 'treasury',
+            //   token_mint: 'treasury',
+            //   token_name: 'Platform Fees',
+            //   earner_wallet: process.env.TREASURY_WALLET_ADDRESS,
+            //   earner_social: 'Platform',
+            //   percentage: 20
+            // });
 
             return feeShareWallets;
           } catch (error) {
@@ -144,6 +144,40 @@ jobs:
 
         async function getClaimTransaction(position) {
           try {
+            // For royalty earners, we need to get the pool config first
+            const poolConfigResponse = await fetch(
+              'https://public-api-v2.bags.fm/api/v1/state/pool-config-keys-by-fee-claimer-vaults',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': process.env.BAGS_API_KEY
+                },
+                body: JSON.stringify({
+                  feeClaimer: position.feeClaimer
+                })
+              }
+            );
+            
+            if (!poolConfigResponse.ok) {
+              console.error(`Pool config error: ${poolConfigResponse.status}`);
+              return null;
+            }
+            
+            const poolConfigData = await poolConfigResponse.json();
+            const poolConfigs = poolConfigData.response || [];
+            
+            // Find the pool config for this specific token
+            const tokenPoolConfig = poolConfigs.find(config => 
+              config.tokenMint === position.tokenMint
+            );
+            
+            if (!tokenPoolConfig) {
+              console.warn(`No pool config found for token ${position.tokenMint}`);
+              return null;
+            }
+            
+            // Generate claim transaction with the pool config data
             const response = await fetch(
               'https://public-api-v2.bags.fm/api/v1/token-launch/claim-txs',
               {
@@ -153,22 +187,22 @@ jobs:
                   'x-api-key': process.env.BAGS_API_KEY
                 },
                 body: JSON.stringify({
-                  feeClaimer: process.env.TREASURY_WALLET_ADDRESS,
+                  feeClaimer: position.feeClaimer,
                   tokenMint: position.tokenMint,
-                  virtualPoolAddress: position.virtualPoolAddress,
-                  dammV2Position: position.dammV2Position,
-                  dammV2Pool: position.dammV2Pool,
-                  dammV2PositionNftAccount: position.dammV2PositionNftAccount,
-                  tokenAMint: position.tokenAMint,
-                  tokenBMint: position.tokenBMint,
-                  tokenAVault: position.tokenAVault,
-                  tokenBVault: position.tokenBVault,
-                  claimVirtualPoolFees: position.claimVirtualPoolFees || true,
-                  claimDammV2Fees: position.claimDammV2Fees || true,
-                  isCustomFeeVault: position.isCustomFeeVault || false,
-                  customFeeVaultClaimerA: position.customFeeVaultClaimerA,
-                  customFeeVaultClaimerB: position.customFeeVaultClaimerB,
-                  customFeeVaultClaimerSide: position.customFeeVaultClaimerSide
+                  virtualPoolAddress: tokenPoolConfig.virtualPoolAddress,
+                  dammV2Position: tokenPoolConfig.dammV2Position,
+                  dammV2Pool: tokenPoolConfig.dammV2Pool,
+                  dammV2PositionNftAccount: tokenPoolConfig.dammV2PositionNftAccount,
+                  tokenAMint: tokenPoolConfig.tokenAMint,
+                  tokenBMint: tokenPoolConfig.tokenBMint,
+                  tokenAVault: tokenPoolConfig.tokenAVault,
+                  tokenBVault: tokenPoolConfig.tokenBVault,
+                  claimVirtualPoolFees: true,
+                  claimDammV2Fees: true,
+                  isCustomFeeVault: tokenPoolConfig.isCustomFeeVault || false,
+                  customFeeVaultClaimerA: tokenPoolConfig.customFeeVaultClaimerA,
+                  customFeeVaultClaimerB: tokenPoolConfig.customFeeVaultClaimerB,
+                  customFeeVaultClaimerSide: tokenPoolConfig.customFeeVaultClaimerSide
                 })
               }
             );
