@@ -34,7 +34,6 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useWallet } from '@/components/ui/WalletProvider';
 import { getOrCreateProfile, Profile } from '@/lib/supabase';
-import bs58 from 'bs58';
 
 interface RoyaltyRecipient {
   id: string;
@@ -68,12 +67,13 @@ const ROLES = [
 ] as const;
 
 const CreateCoin: React.FC = () => {
-  const { isConnected, publicKey, signAndSendTransaction } = useWallet();
+  const { isConnected, publicKey, signAndSendTransaction, signTransaction } = useWallet();
   const [formData, setFormData] = useState({
     name: '',
     symbol: '',
     description: '',
     twitterUrl: '',
+    telegramUrl: '',
     imageUrl: '',
     bannerUrl: '',
     initialBuyAmount: '0.01'
@@ -85,6 +85,7 @@ const CreateCoin: React.FC = () => {
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const isProcessingRef = useRef(false);
   const [royaltyRecipients, setRoyaltyRecipients] = useState<RoyaltyRecipient[]>([
     {
       id: '1',
@@ -280,6 +281,8 @@ const CreateCoin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🚀 Form submission started at:', new Date().toISOString());
+    
     if (!isConnected || !publicKey) {
       alert('Please connect your wallet first');
       return;
@@ -290,160 +293,154 @@ const CreateCoin: React.FC = () => {
       return;
     }
 
+    // Prevent multiple submissions using ref for immediate check
+    if (isProcessingRef.current) {
+      console.log('🚫 Form submission already in progress (ref check), ignoring duplicate submit');
+      return;
+    }
+
+    isProcessingRef.current = true;
     setIsSubmitting(true);
 
     try {
-      // Prepare token data
-      const tokenData = {
+      console.log('🚀 Starting token launch process...');
+      console.log('📤 Form data:', {
         name: formData.name,
         symbol: formData.symbol,
         description: formData.description,
         imageUrl: formData.imageUrl,
         twitterUrl: formData.twitterUrl,
         initialBuyAmount: parseFloat(formData.initialBuyAmount),
-        creatorWallet: publicKey
-      };
+        userWallet: publicKey,
+        royaltyRecipients
+      });
 
-      console.log('🚀 Starting complete token launch process...');
-      console.log('📤 Sending token data:', tokenData);
-      console.log('🔗 Calling API: /api/launch-token-final');
-      
-      // Step 1: Create token metadata and get transactions
-      const response = await fetch('/api/launch-token-final?v=' + Date.now(), {
+      // Decide whether to skip payment (default: skip, to preserve current working flow)
+      const skipPayment = (process.env.NEXT_PUBLIC_SKIP_PAYMENT as unknown as string) !== '0';
+
+      let launchResponse: Response;
+
+      if (skipPayment) {
+        // Direct Bags launch (testing-only): call server launch route without payment verification
+        console.log('🧪 TEST: Directly calling /api/launch-token to exercise Bags flow...');
+        launchResponse = await fetch('/api/launch-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: formData.imageUrl,
+            name: formData.name,
+            symbol: formData.symbol,
+            description: formData.description,
+            userWallet: publicKey,
+            initialBuyAmount: parseFloat(formData.initialBuyAmount),
+            twitterUrl: formData.twitterUrl,
+            telegram: formData.telegramUrl,
+            website: ''
+          }),
+        });
+      } else {
+        // Payment + signing + server verification and launch (restored)
+        const transactionId = Date.now().toString();
+        console.log(`💰 Creating payment transaction (ID: ${transactionId})...`);
+        const paymentResponse = await fetch('/api/create-payment-transaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userWallet: publicKey,
+            initialBuyAmount: parseFloat(formData.initialBuyAmount),
+            transactionId
+          }),
+        });
+        if (!paymentResponse.ok) {
+          const errorData = await paymentResponse.json();
+          throw new Error(errorData.error || 'Failed to create payment transaction');
+        }
+        const paymentData = await paymentResponse.json();
+
+        console.log('🔐 Requesting user to sign and send payment transaction...');
+        const { Transaction } = await import('@solana/web3.js');
+        const paymentTx = Transaction.from(Buffer.from(paymentData.transaction, 'base64'));
+        const paymentSignature = await signAndSendTransaction(paymentTx);
+        console.log('✅ Payment transaction signature:', paymentSignature);
+
+        console.log('🚀 Launching token with platform wallet (server-side verification)...');
+        launchResponse = await fetch('/api/verify-payment-and-launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: formData.imageUrl,
+            name: formData.name,
+            symbol: formData.symbol,
+            description: formData.description,
+            userWallet: publicKey,
+            initialBuyAmount: parseFloat(formData.initialBuyAmount),
+            twitterUrl: formData.twitterUrl,
+            telegram: formData.telegramUrl,
+            website: ''
+          }),
+        });
+      }
+
+      if (!launchResponse.ok) {
+        const errorData = await launchResponse.json();
+        throw new Error(errorData.error || 'Failed to launch token');
+      }
+
+      const launchData = await launchResponse.json();
+      console.log('✅ Token launched successfully:', launchData);
+
+      // Step 4: Save token to database
+      console.log('💾 Saving token to database...');
+      const saveResponse = await fetch('/api/save-token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(tokenData)
+        body: JSON.stringify({
+          deployer_user_id: userProfile?.id || null,
+          deployer_social_or_wallet: publicKey,
+          name: formData.name,
+          symbol: formData.symbol,
+          description: formData.description,
+          contract_address: launchData.tokenMint,
+          social_link: formData.twitterUrl,
+          image_url: formData.imageUrl,
+          banner_url: formData.bannerUrl,
+          metadata_url: launchData.tokenMetadata,
+          royalty_earners: royaltyRecipients.map(recipient => ({
+            wallet: recipient.type === 'wallet' ? recipient.identifier : null,
+            social_platform: recipient.type === 'social' ? recipient.identifier.split(':')[0] : null,
+            social_handle: recipient.type === 'social' ? recipient.identifier.split(':')[1] : null,
+            percentage: recipient.percentage,
+            role: recipient.role,
+            is_manager: recipient.isManager
+          }))
+        }),
       });
-      
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response ok:', response.ok);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to launch token');
+      if (!saveResponse.ok) {
+        console.warn('⚠️ Failed to save token to database, but token was launched successfully');
+      } else {
+        console.log('✅ Token saved to database');
       }
 
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Token launch failed');
-      }
-
-      console.log('✅ Token launch setup completed:', result);
-      console.log(`🪙 Token mint: ${result.tokenMint}`);
-      console.log(`📝 Needs config transaction: ${result.needsConfigTransaction}`);
-
-      // Step 2: Sign and send transactions
-      const { Transaction, VersionedTransaction } = await import('@solana/web3.js');
-      let signedTransaction: string | undefined;
-
-      // Step 2a: Sign config transaction if needed
-      if (result.needsConfigTransaction && result.transactions?.configTransaction) {
-        console.log('🔧 Step 2a: Signing config transaction...');
-        
-        try {
-          const configTransactionBuffer = bs58.decode(result.transactions.configTransaction);
-          let configTransaction;
-          
-          try {
-            configTransaction = Transaction.from(configTransactionBuffer);
-          } catch (error) {
-            configTransaction = VersionedTransaction.deserialize(configTransactionBuffer);
-          }
-          
-          signedTransaction = await signAndSendTransaction(configTransaction);
-          console.log('✅ Config transaction signed and sent:', signedTransaction);
-          
-          // Wait for config transaction to be confirmed
-          console.log('⏳ Waiting for config transaction confirmation...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-        } catch (error) {
-          console.error('❌ Failed to sign config transaction:', error);
-          throw new Error('Failed to sign config transaction');
-        }
-      }
-
-      // Step 2b: Sign launch transaction
-      console.log('🚀 Step 2b: Signing launch transaction...');
-      
-      if (result.transactions?.launchTransaction) {
-        try {
-          const launchTransactionBuffer = bs58.decode(result.transactions.launchTransaction);
-          let launchTransaction;
-          
-          try {
-            launchTransaction = Transaction.from(launchTransactionBuffer);
-          } catch (error) {
-            launchTransaction = VersionedTransaction.deserialize(launchTransactionBuffer);
-          }
-          
-          signedTransaction = await signAndSendTransaction(launchTransaction);
-          console.log('✅ Launch transaction signed and sent:', signedTransaction);
-          
-        } catch (error) {
-          console.error('❌ Failed to sign launch transaction:', error);
-          throw new Error('Failed to sign launch transaction');
-        }
-      }
-
+      // Step 5: Show success message and redirect
       console.log('🎉 Token launched successfully!');
-      console.log(`Token: ${result.tokenMint}`);
-      console.log(`Contract Address: ${result.tokenMint}`);
-      console.log(`Transaction: ${signedTransaction}`);
-      console.log('💰 Token launched with shared fees: 100% platform fees');
+      console.log('🪙 Token Mint:', launchData.tokenMint);
+      console.log('🔑 Launch Signature:', launchData.signature);
+      console.log('🌐 View your token at:', launchData.splitzUrl);
       
-      // Save token data to database
-      try {
-        console.log('💾 Saving token data to database...');
-        
-        const royaltyEarners = [
-          {
-            social_or_wallet: "@splitzdotfun",
-            role: "Platform",
-            percentage: 100
-          }
-        ];
-        
-        const saveResponse = await fetch('/api/save-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            deployer_user_id: null, // Will be set when user system is implemented
-            deployer_social_or_wallet: publicKey,
-            name: formData.name,
-            symbol: formData.symbol,
-            description: formData.description,
-            contract_address: result.tokenMint,
-            social_link: formData.twitterUrl || null,
-            image_url: formData.imageUrl || null,
-            banner_url: null, // Not implemented yet
-            metadata_url: result.tokenMetadata,
-            royalty_earners: royaltyEarners
-          })
-        });
-        
-        if (saveResponse.ok) {
-          console.log('✅ Token data saved to database');
-        } else {
-          console.warn('⚠️ Failed to save token data to database');
-        }
-      } catch (error) {
-        console.warn('⚠️ Error saving token data:', error);
-      }
+      alert(`🎉 Token launched successfully!\n\nToken: ${formData.name} (${formData.symbol})\nMint: ${launchData.tokenMint}\n\nView your token at: ${launchData.splitzUrl}`);
       
-      // Redirect to token page after successful launch
-      window.location.href = `/token/${result.tokenMint}`;
+      // Redirect to the token page
+      window.location.href = launchData.splitzUrl;
       
     } catch (error) {
-      console.error('❌ Failed to launch token:', error);
-      alert(`❌ Failed to launch token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Token launch error:', error);
+      alert(`❌ Token launch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
+      isProcessingRef.current = false;
     }
   };
 
@@ -908,6 +905,18 @@ const CreateCoin: React.FC = () => {
                   placeholder="https://x.com/yourproject"
                   className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent"
                 />
+                <label htmlFor="telegramUrl" className="block text-sm font-medium text-text-primary mt-4 mb-2">
+                  Telegram URL (optional)
+                </label>
+                <input
+                  type="url"
+                  id="telegramUrl"
+                  name="telegramUrl"
+                  value={formData.telegramUrl}
+                  onChange={handleInputChange}
+                  placeholder="https://t.me/yourproject"
+                  className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent"
+                />
                 <p className="text-xs text-text-secondary mt-2">
                   Royalties will be split between @launchonsplitz (creator) and @splitzdotfun (platform).
                 </p>
@@ -936,9 +945,38 @@ const CreateCoin: React.FC = () => {
                 <p className="text-xs text-text-secondary mt-2">
                   Amount of SOL to use for the initial token purchase
                 </p>
-                <p className="text-xs text-text-secondary mt-1">
-                  Make sure you have at least 0.05 SOL spare in your wallet to account for deployment fees.
-                </p>
+              </div>
+            </div>
+
+            {/* Cost Breakdown */}
+            <div className="bg-background-card rounded-lg p-6 border border-background-elevated">
+              <h3 className="text-lg font-semibold text-text-primary mb-4">Cost Breakdown</h3>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-text-secondary">Launch Fee</span>
+                  <span className="text-text-primary font-medium">0.1 SOL</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-text-secondary">Initial Buy</span>
+                  <span className="text-text-primary font-medium">{formData.initialBuyAmount || '0'} SOL</span>
+                </div>
+                <div className="border-t border-background-elevated pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-primary font-semibold">Total Cost</span>
+                    <span className="text-primary-mint font-bold text-lg">
+                      {(0.1 + parseFloat(formData.initialBuyAmount || '0')).toFixed(3)} SOL
+                    </span>
+                  </div>
+                </div>
+                <div className="bg-background-dark rounded-lg p-3 mt-3">
+                  <p className="text-xs text-text-secondary">
+                    💡 <strong>Platform handles all network fees and transaction costs</strong>
+                  </p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    You'll receive {formData.initialBuyAmount || '0'} SOL worth of tokens after launch
+                  </p>
+                </div>
               </div>
             </div>
 

@@ -8,12 +8,20 @@ import {
   Connection,
 } from "@solana/web3.js";
 import bs58 from "bs58";
+import {
+  getAssociatedTokenAddress,
+  getMint,
+  getOrCreateAssociatedTokenAccount,
+  createTransferCheckedInstruction,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 
 // Initialize SDK
 const BAGS_API_KEY = process.env.BAGS_API_KEY;
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY; // base58-encoded secret key per Bags guide
-const SITE_URL = process.env.SITE_URL || 'https://splitz.fun';
+const PLATFORM_WALLET_ADDRESS = process.env.PLATFORM_WALLET_ADDRESS;
 
 let connection: Connection;
 let sdk: BagsSDK;
@@ -21,8 +29,8 @@ let platformKeypair: Keypair;
 
 // Initialize SDK components
 function initializeSDK() {
-  if (!BAGS_API_KEY || !SOLANA_RPC_URL || !PRIVATE_KEY) {
-    throw new Error("BAGS_API_KEY, SOLANA_RPC_URL, and PRIVATE_KEY are required");
+  if (!BAGS_API_KEY || !SOLANA_RPC_URL || !PRIVATE_KEY || !PLATFORM_WALLET_ADDRESS) {
+    throw new Error("BAGS_API_KEY, SOLANA_RPC_URL, PRIVATE_KEY, and PLATFORM_WALLET_ADDRESS are required");
   }
   
   connection = new Connection(SOLANA_RPC_URL);
@@ -79,6 +87,67 @@ async function getFeeShareWallet(
   }
 }
 
+async function transferAllInitialBuyTokensToUser(tokenMint: PublicKey, userWallet: PublicKey): Promise<string | null> {
+  try {
+    const mintInfo = await getMint(connection, tokenMint, 'confirmed');
+
+    const sourceAta = await getAssociatedTokenAddress(
+      tokenMint,
+      platformKeypair.publicKey,
+      false,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    const destAtaInfo = await getOrCreateAssociatedTokenAccount(
+      connection,
+      platformKeypair,
+      tokenMint,
+      userWallet,
+      true,
+      'confirmed',
+      { commitment: 'confirmed' }
+    );
+
+    const sourceBalResp = await connection.getTokenAccountBalance(sourceAta, { commitment: 'confirmed' });
+    const ui = sourceBalResp.value.uiAmount;
+    if (!ui || ui <= 0) {
+      console.log('ℹ️ No base tokens to transfer from platform wallet.');
+      return null;
+    }
+
+    const amount = BigInt(Math.floor(ui * Math.pow(10, mintInfo.decimals)));
+
+    const tx = new (await import('@solana/web3.js')).Transaction();
+    tx.add(
+      createTransferCheckedInstruction(
+        sourceAta,
+        tokenMint,
+        destAtaInfo.address,
+        platformKeypair.publicKey,
+        Number(amount),
+        mintInfo.decimals,
+        [],
+        TOKEN_PROGRAM_ID
+      )
+    );
+
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = platformKeypair.publicKey;
+
+    tx.sign(platformKeypair);
+
+    const sig = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 0 });
+    await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+    console.log('✅ Transferred initial buy tokens to user:', sig);
+    return sig;
+  } catch (err) {
+    console.warn('⚠️ Token transfer to user failed:', err);
+    return null;
+  }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Initialize SDK
@@ -102,6 +171,49 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!imageUrl || !name || !symbol || !description || !userWallet || !initialBuyAmount) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Calculate expected payment amount
+    const launchFee = 0.1;
+    const expectedAmount = launchFee + parseFloat(initialBuyAmount);
+    const expectedLamports = expectedAmount * LAMPORTS_PER_SOL;
+
+    console.log(`🔍 Verifying payment of ${expectedAmount} SOL from ${userWallet} to ${PLATFORM_WALLET_ADDRESS}`);
+
+    // Backend balance polling: wait until funds arrive
+    try {
+      const initialBalance = await connection.getBalance(platformKeypair.publicKey);
+      const expectedLamportsRounded = expectedLamports; // exact amount expected from UI
+
+      console.log(`💰 Initial platform balance: ${initialBalance / LAMPORTS_PER_SOL} SOL`);
+
+      let attempts = 0;
+      const maxAttempts = 60; // up to 60 seconds
+      let received = false;
+
+      while (attempts < maxAttempts && !received) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const current = await connection.getBalance(platformKeypair.publicKey);
+        const delta = current - initialBalance;
+        console.log(`🔎 Poll ${attempts + 1}/${maxAttempts}: delta ${(delta / LAMPORTS_PER_SOL).toFixed(6)} SOL`);
+        if (delta >= expectedLamportsRounded * 0.99) {
+          received = true;
+          console.log('✅ Detected expected funds in platform wallet');
+          break;
+        }
+        attempts++;
+      }
+
+      if (!received) {
+        throw new Error('Timed out waiting for SOL to arrive in platform wallet');
+      }
+
+    } catch (error) {
+      console.error('❌ Balance verification failed:', error);
+      return NextResponse.json(
+        { error: 'Balance verification failed', details: error instanceof Error ? error.message : 'Unknown error' },
         { status: 400 }
       );
     }
@@ -139,7 +251,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       description,
       telegram,
       twitter: twitterUrl,
-      website: SITE_URL,
+      website,
     });
     console.log("✨ Successfully created token info and metadata!");
     console.log("🪙 Token mint:", tokenInfo.tokenMint);
@@ -224,29 +336,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
     console.log(`🌐 View your token at: https://bags.fm/${tokenInfo.tokenMint}`);
 
-    // Step 6: Transfer initial buy tokens back to user (best-effort placeholder)
-    console.log("🔄 Initiating token transfer to user...");
-    try {
-      const transferResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/transfer-tokens-to-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userWallet: userWallet,
-          tokenMint: tokenInfo.tokenMint,
-          initialBuyAmount: initialBuyAmount,
-          platformKeypair: platformKeypair.publicKey.toBase58()
-        }),
-      });
-
-      if (transferResponse.ok) {
-        console.log("✅ Token transfer initiated successfully");
-      } else {
-        console.warn("⚠️ Token transfer failed, but token was launched successfully");
-      }
-    } catch (error) {
-      console.warn("⚠️ Token transfer error:", error);
+    // Step 6: Transfer ALL purchased base tokens to the user's wallet
+    const transferSig = await transferAllInitialBuyTokensToUser(new PublicKey(tokenInfo.tokenMint), new PublicKey(userWallet));
+    if (!transferSig) {
+      console.warn('⚠️ No tokens transferred (none found or transfer failed).');
     }
 
     return NextResponse.json({
@@ -263,7 +356,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       bagsUrl: `https://bags.fm/${tokenInfo.tokenMint}`,
       splitzUrl: `https://splitz.fun/token/${tokenInfo.tokenMint}`,
       initialBuyAmount: initialBuyAmount,
-      userWallet: userWallet
+      userWallet: userWallet,
+      transferSignature: transferSig || null
     });
 
   } catch (error) {

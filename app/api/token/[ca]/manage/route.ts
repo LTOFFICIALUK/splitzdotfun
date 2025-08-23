@@ -137,77 +137,9 @@ export async function GET(
     console.log('Parsed fees owed:', feesOwedPerEarner);
     console.log('Parsed fees claimed:', feesClaimedPerEarner);
 
-    // Update fees from BAGS API
+    // TODO: Implement new fee fetching logic here
+    // BAGS API calls have been removed and need to be replaced with new implementation
     let updatedFeesGenerated = tokenData.fees_generated;
-    try {
-      console.log(`[GET] Fetching BAGS fees for contract: ${contractAddress}`);
-      const bagsResponse = await fetch(`https://api2.bags.fm/api/v1/token-launch/lifetime-fees?tokenMint=${contractAddress}`);
-      console.log(`[GET] BAGS response status: ${bagsResponse.status}`);
-      
-      if (bagsResponse.ok) {
-        const bagsData = await bagsResponse.json();
-        console.log(`[GET] BAGS API response:`, bagsData);
-        
-        if (bagsData.success && bagsData.response) {
-          // Convert lamports to SOL
-          const totalLifetimeFeesLamports = parseInt(bagsData.response);
-          const totalLifetimeFeesSol = totalLifetimeFeesLamports / 1_000_000_000;
-          
-          // Calculate platform fees (20% of total)
-          const platformFees = totalLifetimeFeesSol * 0.2;
-          updatedFeesGenerated = platformFees.toFixed(8);
-
-          // Get current fees from database to calculate incremental change
-          const currentFeesGenerated = tokenData.fees_generated ? parseFloat(tokenData.fees_generated) : 0;
-          const newFeesGenerated = parseFloat(updatedFeesGenerated);
-          const incrementalFees = newFeesGenerated - currentFeesGenerated;
-
-          console.log(`[GET] Fee calculation:`, { currentFeesGenerated, newFeesGenerated, incrementalFees });
-
-          // Only update if there are new fees to distribute
-          if (incrementalFees > 0) {
-            // Update tokens table with new fees_generated
-            await supabase
-              .from('tokens')
-              .update({ 
-                fees_generated: updatedFeesGenerated,
-                updated_at: new Date().toISOString()
-              })
-              .eq('contract_address', contractAddress);
-
-            // Calculate incremental fees for each current earner
-            const updatedFeesOwed: { [key: string]: string } = { ...feesOwedPerEarner };
-            royaltyEarners.forEach((earner: any) => {
-              const walletAddress = earner.social_or_wallet;
-              const percentage = earner.percentage || 0;
-              const incrementalEarned = incrementalFees * (percentage / 100);
-              
-              // Add to existing earnings
-              const existingEarned = parseFloat((feesOwedPerEarner as { [key: string]: string })[walletAddress] || '0');
-              const newTotal = existingEarned + incrementalEarned;
-              updatedFeesOwed[walletAddress] = newTotal.toFixed(8);
-              
-              console.log(`[GET] Updated fees for ${walletAddress}:`, { percentage, existingEarned, incrementalEarned, newTotal });
-            });
-
-            // Update token_ownership table with incremental fees
-            await supabase
-              .from('token_ownership')
-              .update({ 
-                total_fees_earned: updatedFeesGenerated,
-                fees_owed_per_earner: JSON.stringify(updatedFeesOwed),
-                updated_at: new Date().toISOString()
-              })
-              .eq('token_id', tokenData.id);
-
-            console.log(`[GET] Final updatedFeesOwed:`, updatedFeesOwed);
-            console.log(`[GET] Updated incremental fees for ${contractAddress}: +${incrementalFees.toFixed(8)} SOL`);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching BAGS fee data:', error);
-    }
 
     // Transform data to match the interface
     const transformedData = {
@@ -338,53 +270,10 @@ export async function PUT(
       social_or_wallet: recipient.social_or_wallet
     }));
 
-    // Fetch latest fees from BAGS API and update database
+    // TODO: Implement new fee fetching logic here
+    // BAGS API calls have been removed and need to be replaced with new implementation
     let newFeesGenerated = null;
     let newTotalFeesEarned = null;
-    
-    try {
-      console.log(`[PUT] Fetching BAGS fees for contract: ${contractAddress}`);
-      const bagsResponse = await fetch(`https://api2.bags.fm/api/v1/token-launch/lifetime-fees?tokenMint=${contractAddress}`);
-      console.log(`[PUT] BAGS response status: ${bagsResponse.status}`);
-      
-      if (bagsResponse.ok) {
-        const bagsData = await bagsResponse.json();
-        console.log(`[PUT] BAGS API response:`, bagsData);
-        
-        if (bagsData.success && bagsData.response) {
-          // Convert lamports to SOL
-          const totalLifetimeFeesLamports = parseInt(bagsData.response);
-          const totalLifetimeFeesSol = totalLifetimeFeesLamports / 1_000_000_000;
-          
-          // Calculate platform fees (20% of total)
-          const platformFees = totalLifetimeFeesSol * 0.2;
-          newFeesGenerated = platformFees.toFixed(8);
-          newTotalFeesEarned = platformFees.toFixed(8);
-
-          // Update tokens table with new fees_generated
-          await supabase
-            .from('tokens')
-            .update({ 
-              fees_generated: newFeesGenerated,
-              updated_at: new Date().toISOString()
-            })
-            .eq('contract_address', contractAddress);
-
-          // Update token_ownership table with new total_fees_earned
-          await supabase
-            .from('token_ownership')
-            .update({ 
-              total_fees_earned: newTotalFeesEarned,
-              updated_at: new Date().toISOString()
-            })
-            .eq('token_id', tokenData.id);
-
-          console.log(`Updated fees for ${contractAddress}: ${newFeesGenerated} SOL`);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching BAGS fee data:', error);
-    }
 
     // Get current fees owed per earner to preserve existing earnings
     let currentFeesOwed = {};

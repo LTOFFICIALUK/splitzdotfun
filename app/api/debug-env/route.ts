@@ -7,7 +7,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'NOT_SET',
       NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL || 'NOT_SET',
       CRON_SECRET: process.env.CRON_SECRET ? 'SET' : 'NOT_SET',
-      BAGS_API_KEY: process.env.BAGS_API_KEY ? 'SET' : 'NOT_SET',
+
       NODE_ENV: process.env.NODE_ENV || 'NOT_SET'
     };
 
