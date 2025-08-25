@@ -115,7 +115,7 @@ async function getAuctionAnalytics(startDate: Date) {
     // Calculate auction duration stats
     const auctionDurations = completedAuctions.map(auction => {
       const start = new Date(auction.auction_start);
-      const end = new Date(auction.ended_at || auction.auction_end);
+      const end = new Date(auction.auction_end);
       return (end.getTime() - start.getTime()) / (1000 * 60 * 60); // Hours
     });
 
@@ -128,7 +128,7 @@ async function getAuctionAnalytics(startDate: Date) {
 
     // Time series data
     const dailyAuctions = getDailyData(auctions || [], 'created_at');
-    const dailySales = getDailyData(soldAuctions, 'ended_at');
+    const dailySales = getDailyData(soldAuctions, 'auction_end');
 
     return {
       overview: {
@@ -213,7 +213,6 @@ async function getOfferAnalytics(startDate: Date) {
 
     // Negotiation patterns
     const counterOfferRate = totalOffers > 0 ? (counteredOffers.length / totalOffers) * 100 : 0;
-    const averageCounterAmount = counteredOffers.reduce((sum, o) => sum + (o.counter_amount || 0), 0) / counteredOffers.length || 0;
 
     // Time series data
     const dailyOffers = getDailyData(offers || [], 'created_at');
@@ -232,7 +231,6 @@ async function getOfferAnalytics(startDate: Date) {
       financial: {
         averageOfferAmount: Math.round(averageOfferAmount * 1000) / 1000,
         averageAcceptedAmount: Math.round(averageAcceptedAmount * 1000) / 1000,
-        averageCounterAmount: Math.round(averageCounterAmount * 1000) / 1000,
         totalVolume: acceptedOffers.reduce((sum, o) => sum + (o.offer_amount || 0), 0)
       },
       performance: {
@@ -256,6 +254,43 @@ async function getOfferAnalytics(startDate: Date) {
 // Revenue Analytics
 async function getRevenueAnalytics(startDate: Date) {
   try {
+    // Check if platform_revenue table exists
+    const { data: tableExists, error: tableCheckError } = await supabase
+      .from('platform_revenue')
+      .select('id')
+      .limit(1);
+
+    if (tableCheckError) {
+      console.log('Platform revenue table not available, returning empty analytics');
+      return {
+        overview: {
+          totalRevenue: 0,
+          saleFeeRevenue: 0,
+          tokenFeeRevenue: 0,
+          totalTransactions: 0,
+          averageRevenuePerTransaction: 0
+        },
+        efficiency: {
+          feeCollectionEfficiency: 0,
+          totalSalesVolume: 0,
+          revenueToVolumeRatio: 0
+        },
+        trends: {
+          dailyRevenue: [],
+          dailySalesVolume: [],
+          monthlyRevenue: []
+        },
+        breakdown: {
+          revenueByType: {
+            sale_fee: 0,
+            token_fee: 0,
+            total: 0
+          },
+          revenueByMonth: []
+        }
+      };
+    }
+
     // Get platform revenue in time range
     const { data: revenue, error: revenueError } = await supabase
       .from('platform_revenue')
