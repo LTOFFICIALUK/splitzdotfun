@@ -11,7 +11,8 @@ import {
   AlertCircle,
   MessageSquare,
   Award,
-  Calendar
+  Calendar,
+  Trash2
 } from 'lucide-react';
 
 interface NotificationCenterProps {
@@ -36,6 +37,7 @@ export default function NotificationCenter({ userId, className = '' }: Notificat
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [clearing, setClearing] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
@@ -98,6 +100,36 @@ export default function NotificationCenter({ userId, className = '' }: Notificat
       }
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    if (!confirm('Are you sure you want to delete all notifications? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setClearing(true);
+      const response = await fetch(`/api/notifications/clear-all`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId })
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setNotifications([]);
+        setUnreadCount(0);
+      } else {
+        setError(result.error || 'Failed to clear notifications');
+      }
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      setError('Failed to clear notifications');
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -223,6 +255,17 @@ export default function NotificationCenter({ userId, className = '' }: Notificat
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
             <div className="flex items-center space-x-2">
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAllNotifications}
+                  disabled={clearing}
+                  className="text-sm text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                  title="Clear all notifications"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear All</span>
+                </button>
+              )}
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}

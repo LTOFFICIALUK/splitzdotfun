@@ -300,6 +300,27 @@ export class NotificationService {
     }
   }
 
+  static async clearAllNotifications(userId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', userId)
+        .select('id');
+
+      if (error) {
+        console.error('Error clearing all notifications:', error);
+        return { success: false, error };
+      }
+
+      const deletedCount = data?.length || 0;
+      return { success: true, data: { deletedCount } };
+    } catch (error) {
+      console.error('Error in clearAllNotifications:', error);
+      return { success: false, error };
+    }
+  }
+
   static async getNotificationStats(userId: string) {
     try {
       const { data, error } = await supabase
