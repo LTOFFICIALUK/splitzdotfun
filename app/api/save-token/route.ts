@@ -102,41 +102,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('✅ Token ownership saved successfully:', ownership.id);
 
-    // Create royalty agreement version
-    console.log('📋 Creating royalty agreement version...');
-    
-    const platformFeeBps = 1000; // 10% platform fee (1000 basis points)
-    
-    const { data: royaltyAgreement, error: agreementError } = await supabase
-      .from('royalty_agreement_versions')
-      .insert({
-        token_id: token.id,
-        platform_fee_bps: platformFeeBps,
-        effective_from: new Date().toISOString(),
-        created_by: deployer_user_id
-      })
-      .select()
-      .single();
-
-    if (agreementError) {
-      console.error('❌ Error creating royalty agreement:', agreementError);
-      return NextResponse.json(
-        { error: 'Failed to create royalty agreement', details: agreementError },
-        { status: 500 }
-      );
-    }
-
-    console.log('✅ Royalty agreement created successfully:', royaltyAgreement.id);
-
-    // Create royalty shares for each earner
-    console.log('👥 Creating royalty shares for earners...');
+    // Use centralized royalty share update function
+    console.log('🔄 Using centralized royalty share update...');
     
     if (royalty_earners && royalty_earners.length > 0) {
-      const shareRecords = royalty_earners.map((earner: any) => {
-        // Convert percentage to basis points (1% = 100 bps)
-        const bps = Math.round(earner.percentage * 100);
-        
-        // Determine the wallet/identifier to use
+      const royaltyShares = royalty_earners.map((earner: any) => {
         let earnerWallet = '';
         if (earner.wallet) {
           earnerWallet = earner.wallet;
@@ -146,58 +116,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           earnerWallet = earner.social_or_wallet || '';
         }
 
-        console.log('📝 Creating share for earner:', {
-          wallet: earner.wallet,
-          social_platform: earner.social_platform,
-          social_handle: earner.social_handle,
-          social_or_wallet: earner.social_or_wallet,
-          role: earner.role,
-          percentage: earner.percentage,
-          is_manager: earner.is_manager,
-          earner_wallet: earnerWallet,
-          bps: bps
-        });
-
         return {
-          agreement_version_id: royaltyAgreement.id,
           earner_wallet: earnerWallet,
-          bps: bps
+          bps: Math.floor(earner.percentage * 100), // Convert percentage to basis points
+          role: earner.role || 'Earner',
+          is_manager: earner.is_manager || false
         };
       });
 
-      const { error: sharesError } = await supabase
-        .from('royalty_agreement_version_shares')
-        .insert(shareRecords);
+      // Call centralized royalty share update
+      const royaltyUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('/rest/v1', '')}/api/royalty-shares/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({
+          token_id: token.id,
+          royalty_shares: royaltyShares,
+          platform_fee_bps: 1000, // 10% platform fee
+          updated_by_user_id: deployer_user_id,
+          reason: 'token_launch'
+        })
+      });
 
-      if (sharesError) {
-        console.error('❌ Error creating royalty shares:', sharesError);
+      if (!royaltyUpdateResponse.ok) {
+        const errorData = await royaltyUpdateResponse.json();
+        console.error('❌ Error in centralized royalty update:', errorData);
         return NextResponse.json(
-          { error: 'Failed to create royalty shares', details: sharesError },
+          { error: 'Failed to update royalty shares', details: errorData },
           { status: 500 }
         );
       }
 
-      console.log('✅ Royalty shares created successfully for', shareRecords.length, 'earners');
-    }
-
-    // Record the royalty change in history
-    console.log('📝 Recording royalty change in history...');
-    
-    const { error: historyError } = await supabase
-      .from('royalty_changes_history')
-      .insert({
-        token_id: token.id,
-        previous_royalty_earners: null, // First time setup
-        new_royalty_earners: royalty_earners || [],
-        changed_by_user_id: deployer_user_id,
-        fees_at_change: 0
-      });
-
-    if (historyError) {
-      console.error('❌ Error recording royalty change history:', historyError);
-      // Don't fail the entire request for this
-    } else {
-      console.log('✅ Royalty change history recorded');
+      console.log('✅ Centralized royalty share update completed');
     }
 
     // Initialize fee accrual ledger entries for each earner

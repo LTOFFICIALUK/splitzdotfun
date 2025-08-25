@@ -234,6 +234,54 @@ async function processAuctionSale(auction: any, winner: any, winningBid: number)
       return { success: false, error: 'Failed to transfer token ownership' };
     }
 
+    // Update royalty shares for ownership transfer
+    // Get current royalty agreement and update it for the new owner
+    const { data: currentAgreement, error: agreementError } = await supabase
+      .from('royalty_agreement_versions')
+      .select(`
+        id,
+        platform_fee_bps,
+        royalty_agreement_version_shares (
+          earner_wallet,
+          bps
+        )
+      `)
+      .eq('token_id', auction.token_id)
+      .is('effective_to', null)
+      .single();
+
+    if (!agreementError && currentAgreement) {
+      // Call centralized royalty share update for ownership transfer
+      const royaltyShares = currentAgreement.royalty_agreement_version_shares.map((share: any) => ({
+        earner_wallet: share.earner_wallet,
+        bps: share.bps,
+        role: 'Earner', // Default role
+        is_manager: false // Default manager status
+      }));
+
+      const royaltyUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('/rest/v1', '')}/api/royalty-shares/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({
+          token_id: auction.token_id,
+          royalty_shares: royaltyShares,
+          platform_fee_bps: currentAgreement.platform_fee_bps,
+          updated_by_user_id: winner.id,
+          reason: 'ownership_transfer'
+        })
+      });
+
+      if (!royaltyUpdateResponse.ok) {
+        console.error('❌ Error updating royalty shares for ownership transfer');
+        // Don't fail the sale for royalty update errors
+      } else {
+        console.log('✅ Royalty shares updated for ownership transfer');
+      }
+    }
+
     // Update all bids for this auction to 'ended'
     await supabase
       .from('auction_bids')

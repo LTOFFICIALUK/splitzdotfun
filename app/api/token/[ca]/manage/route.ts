@@ -291,118 +291,42 @@ export async function PUT(
       );
     }
 
-    // Transform the new royalty recipients to match the database format
-    const newRoyaltyEarners = royaltyRecipients.map((recipient: any) => ({
-      role: recipient.role,
-      percentage: recipient.percentage,
-      social_or_wallet: recipient.social_or_wallet
+    // Use centralized royalty share update function
+    console.log('🔄 Using centralized royalty share update...');
+    
+    const royaltyShares = royaltyRecipients.map((recipient: any) => ({
+      earner_wallet: recipient.social_or_wallet,
+      bps: Math.floor(recipient.percentage * 100), // Convert percentage to basis points
+      role: recipient.role || 'Earner',
+      is_manager: recipient.isManager || false
     }));
 
-    // TODO: Implement new fee fetching logic here
-    // BAGS API calls have been removed and need to be replaced with new implementation
-    let newFeesGenerated = null;
-    let newTotalFeesEarned = null;
-
-    // Get current fees owed per earner to preserve existing earnings
-    let currentFeesOwed = {};
-    if (currentOwnership.fees_owed_per_earner) {
-      try {
-        if (typeof currentOwnership.fees_owed_per_earner === 'string') {
-          currentFeesOwed = JSON.parse(currentOwnership.fees_owed_per_earner);
-        } else if (typeof currentOwnership.fees_owed_per_earner === 'object') {
-          currentFeesOwed = currentOwnership.fees_owed_per_earner;
-        }
-      } catch (e) {
-        console.error('Error parsing current fees owed:', e);
-        currentFeesOwed = {};
-      }
-    }
-
-    // Calculate incremental fees since last update
-    const currentFeesGenerated = currentOwnership.total_fees_earned ? parseFloat(currentOwnership.total_fees_earned) : 0;
-    const newFeesGeneratedValue = newFeesGenerated ? parseFloat(newFeesGenerated) : currentFeesGenerated;
-    const incrementalFees = newFeesGeneratedValue - currentFeesGenerated;
-    
-    console.log(`[PUT] Fee calculation:`, {
-      currentFeesGenerated,
-      newFeesGenerated,
-      newFeesGeneratedValue,
-      incrementalFees,
-      currentFeesOwed
-    });
-
-    // Calculate new fees owed per earner based on new royalty structure
-    // For existing recipients: preserve their current earnings + add incremental based on new split
-    // For new recipients: start with 0 + add incremental based on new split
-    const updatedFeesOwed: { [key: string]: string } = { ...currentFeesOwed };
-    
-    // Remove earnings for recipients no longer in the royalty structure
-    const newWalletAddresses = newRoyaltyEarners.map((earner: any) => earner.social_or_wallet);
-    Object.keys(updatedFeesOwed).forEach(walletAddress => {
-      if (!newWalletAddresses.includes(walletAddress)) {
-        delete updatedFeesOwed[walletAddress];
-      }
-    });
-
-    // Add new recipients with 0 earnings if they don't exist
-    newRoyaltyEarners.forEach((earner: any) => {
-      const walletAddress = earner.social_or_wallet;
-      if (!updatedFeesOwed.hasOwnProperty(walletAddress)) {
-        updatedFeesOwed[walletAddress] = '0.00000000';
-      }
-    });
-
-    // Add incremental fees based on new royalty split
-    if (incrementalFees > 0) {
-      newRoyaltyEarners.forEach((earner: any) => {
-        const walletAddress = earner.social_or_wallet;
-        const percentage = earner.percentage || 0;
-        const incrementalEarned = incrementalFees * (percentage / 100);
-        
-        // Add to existing earnings
-        const existingEarned = parseFloat(updatedFeesOwed[walletAddress] || '0');
-        const newTotal = existingEarned + incrementalEarned;
-        updatedFeesOwed[walletAddress] = newTotal.toFixed(8);
-        
-        console.log(`[PUT] Updated fees for ${walletAddress}:`, {
-          percentage,
-          existingEarned,
-          incrementalEarned,
-          newTotal
-        });
-      });
-    }
-    
-    console.log(`[PUT] Final updatedFeesOwed:`, updatedFeesOwed);
-
-    // Record the royalty change in history table
-    await supabase
-      .from('royalty_changes_history')
-      .insert({
+    // Call centralized royalty share update
+    const royaltyUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('/rest/v1', '')}/api/royalty-shares/update`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+      },
+      body: JSON.stringify({
         token_id: tokenData.id,
-        previous_royalty_earners: currentOwnership.royalty_earners || null,
-        new_royalty_earners: JSON.stringify(newRoyaltyEarners),
-        fees_at_change: currentOwnership.total_fees_earned || 0,
-        changed_at: new Date().toISOString()
-      });
-
-    // Update the token_ownership record with new royalty structure and updated fees owed
-    const { error: updateError } = await supabase
-      .from('token_ownership')
-      .update({
-        royalty_earners: JSON.stringify(newRoyaltyEarners),
-        fees_owed_per_earner: JSON.stringify(updatedFeesOwed),
-        updated_at: new Date().toISOString()
+        royalty_shares: royaltyShares,
+        platform_fee_bps: 1000, // 10% platform fee
+        updated_by_user_id: null, // Could be enhanced to get user ID
+        reason: 'management_change'
       })
-      .eq('token_id', tokenData.id);
+    });
 
-    if (updateError) {
-      console.error('Error updating royalty distribution:', updateError);
+    if (!royaltyUpdateResponse.ok) {
+      const errorData = await royaltyUpdateResponse.json();
+      console.error('❌ Error in centralized royalty update:', errorData);
       return NextResponse.json(
-        { success: false, error: 'Failed to update royalty distribution' },
+        { success: false, error: 'Failed to update royalty shares', details: errorData },
         { status: 500 }
       );
     }
+
+    console.log('✅ Centralized royalty share update completed');
 
     return NextResponse.json({
       success: true,
