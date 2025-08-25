@@ -29,8 +29,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Filter out removed recipients before storing
-    const activeFeeSplits = newFeeSplits.filter((split: any) => !split.isRemoved);
+    // Get current royalty agreement for this token
+    const { data: currentAgreement, error: agreementError } = await supabase
+      .from('royalty_agreement_versions')
+      .select(`
+        id,
+        platform_fee_bps,
+        royalty_agreement_version_shares (
+          earner_wallet,
+          bps
+        )
+      `)
+      .eq('token_id', tokenId)
+      .is('effective_to', null)
+      .single();
+
+    if (agreementError) {
+      console.error('Error fetching current royalty agreement:', agreementError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch current royalty agreement' },
+        { status: 500 }
+      );
+    }
+
+    // Transform current royalty shares to match the expected format
+    const currentRoyaltyShares = currentAgreement?.royalty_agreement_version_shares?.map((share: any) => ({
+      earner_wallet: share.earner_wallet,
+      percentage: share.bps / 100, // Convert basis points to percentage
+      role: 'Earner', // Default role, could be enhanced with additional lookup
+      is_manager: false // Default, could be enhanced with additional lookup
+    })) || [];
+
+    // Use current royalty shares if no new fee splits provided
+    const activeFeeSplits = newFeeSplits && newFeeSplits.length > 0 
+      ? newFeeSplits.filter((split: any) => !split.isRemoved)
+      : currentRoyaltyShares;
     
     // Validate that total percentage equals 100%
     const totalPercentage = activeFeeSplits

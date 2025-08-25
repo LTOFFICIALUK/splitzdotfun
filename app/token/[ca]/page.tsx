@@ -246,11 +246,11 @@ const TokenPage: React.FC<TokenPageProps> = ({ params }) => {
               initialBuyAmount: 0.01,
               royaltyRecipients: dbToken.ownership?.royalty_earners?.map((earner: any, index: number) => ({
                 id: index.toString(),
-                type: 'social',
-                identifier: earner.social_or_wallet,
-                percentage: earner.percentage, // use correct key from DB JSON
-                label: earner.social_or_wallet,
-                isManager: earner.role === 'Management',
+                type: earner.wallet ? 'wallet' : 'social',
+                identifier: earner.wallet || earner.social_or_wallet,
+                percentage: earner.percentage,
+                label: earner.wallet || earner.social_or_wallet,
+                isManager: earner.is_manager || earner.role === 'Management',
                 role: earner.role || ''
               })) || [
                 {

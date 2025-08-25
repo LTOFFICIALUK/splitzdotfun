@@ -123,10 +123,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       seller_amount_lamports: sellerAmountLamports
     };
     
+    // Get current royalty agreement for this token
+    const { data: currentAgreement, error: agreementError } = await supabase
+      .from('royalty_agreement_versions')
+      .select(`
+        id,
+        platform_fee_bps,
+        royalty_agreement_version_shares (
+          earner_wallet,
+          bps
+        )
+      `)
+      .eq('token_id', saleData.token_id)
+      .is('effective_to', null)
+      .single();
+
+    if (agreementError) {
+      console.error('Error fetching current royalty agreement:', agreementError);
+      // Continue without royalty data
+    }
+
+    // Transform current royalty shares to match the expected format
+    const currentRoyaltyShares = currentAgreement?.royalty_agreement_version_shares?.map((share: any) => ({
+      social_or_wallet: share.earner_wallet,
+      royalty_percentage: share.bps / 100 // Convert basis points to percentage
+    })) || [];
+
+    // Add current royalty earners to sale data
+    const saleDataWithRoyalties = {
+      ...saleDataWithFees,
+      old_royalty_earners: currentRoyaltyShares,
+      new_royalty_earners: currentRoyaltyShares, // Same for now, could change in future
+      royalty_earners_changed: false
+    };
+
     // Insert the sale
     const { data: sale, error } = await supabase
       .from('marketplace_sales')
-      .insert([saleDataWithFees])
+      .insert([saleDataWithRoyalties])
       .select()
       .single();
     
