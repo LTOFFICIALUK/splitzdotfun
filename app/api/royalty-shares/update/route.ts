@@ -200,31 +200,67 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Don't fail the request, just log the error
     }
 
-    // 8. Update fee accrual ledger entries (if needed)
-    console.log('💰 Updating fee accrual ledger entries...');
+    // 8. Initialize or update fee accrual ledger entries
+    console.log('💰 Initializing/updating fee accrual ledger entries...');
     
     // Get current fee accrual entries for this token
     const { data: currentLedgerEntries, error: ledgerError } = await supabase
       .from('fee_accrual_ledger')
       .select('*')
-      .eq('token_id', token_id)
-      .eq('beneficiary_kind', 'EARNER');
+      .eq('token_id', token_id);
 
     if (ledgerError) {
       console.error('❌ Error fetching current ledger entries:', ledgerError);
     } else {
-      // Update existing entries to reference new agreement version
-      const { error: updateLedgerError } = await supabase
-        .from('fee_accrual_ledger')
-        .update({
-          agreement_version_id: newAgreement.id
-        })
-        .eq('token_id', token_id)
-        .eq('beneficiary_kind', 'EARNER')
-        .is('agreement_version_id', null);
+      if (!currentLedgerEntries || currentLedgerEntries.length === 0) {
+        // Initialize fee accrual ledger entries for new token
+        console.log('💰 Initializing fee accrual ledger for new token...');
+        
+        const ledgerEntries = [
+          // Platform entry
+          {
+            token_id,
+            entry_type: 'ACCRUAL',
+            beneficiary_kind: 'PLATFORM',
+            beneficiary_wallet: 'platform',
+            amount_lamports: 0,
+            agreement_version_id: newAgreement.id
+          },
+          // Earner entries
+          ...royalty_shares.map(share => ({
+            token_id,
+            entry_type: 'ACCRUAL',
+            beneficiary_kind: 'EARNER',
+            beneficiary_wallet: share.earner_wallet,
+            amount_lamports: 0,
+            agreement_version_id: newAgreement.id
+          }))
+        ];
 
-      if (updateLedgerError) {
-        console.error('❌ Error updating ledger entries:', updateLedgerError);
+        const { error: initLedgerError } = await supabase
+          .from('fee_accrual_ledger')
+          .insert(ledgerEntries);
+
+        if (initLedgerError) {
+          console.error('❌ Error initializing fee accrual ledger:', initLedgerError);
+        } else {
+          console.log('✅ Fee accrual ledger initialized for', ledgerEntries.length, 'entries');
+        }
+      } else {
+        // Update existing entries to reference new agreement version
+        const { error: updateLedgerError } = await supabase
+          .from('fee_accrual_ledger')
+          .update({
+            agreement_version_id: newAgreement.id
+          })
+          .eq('token_id', token_id)
+          .is('agreement_version_id', null);
+
+        if (updateLedgerError) {
+          console.error('❌ Error updating ledger entries:', updateLedgerError);
+        } else {
+          console.log('✅ Fee accrual ledger entries updated with new agreement version');
+        }
       }
     }
 

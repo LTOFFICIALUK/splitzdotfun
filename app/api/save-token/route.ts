@@ -152,71 +152,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('✅ Centralized royalty share update completed');
     }
 
-    // Initialize fee accrual ledger entries for each earner
-    console.log('💰 Initializing fee accrual ledger...');
-    
-    if (royalty_earners && royalty_earners.length > 0) {
-      const ledgerEntries = royalty_earners.map((earner: any) => {
-        let earnerWallet = '';
-        if (earner.wallet) {
-          earnerWallet = earner.wallet;
-        } else if (earner.social_platform && earner.social_handle) {
-          earnerWallet = `${earner.social_platform}:${earner.social_handle}`;
-        } else {
-          earnerWallet = earner.social_or_wallet || '';
-        }
-
-        console.log('💰 Creating ledger entry for earner:', {
-          wallet: earner.wallet,
-          social_platform: earner.social_platform,
-          social_handle: earner.social_handle,
-          social_or_wallet: earner.social_or_wallet,
-          role: earner.role,
-          percentage: earner.percentage,
-          is_manager: earner.is_manager,
-          earner_wallet: earnerWallet
-        });
-
-        return {
-          token_id: token.id,
-          entry_type: 'ACCRUAL',
-          beneficiary_kind: 'EARNER',
-          beneficiary_wallet: earnerWallet,
-          amount_lamports: 0, // Initial amount is 0
-          agreement_version_id: royaltyAgreement.id
-        };
-      });
-
-      const { error: ledgerError } = await supabase
-        .from('fee_accrual_ledger')
-        .insert(ledgerEntries);
-
-      if (ledgerError) {
-        console.error('❌ Error initializing fee accrual ledger:', ledgerError);
-        // Don't fail the entire request for this
-      } else {
-        console.log('✅ Fee accrual ledger initialized for', ledgerEntries.length, 'earners');
-      }
-    }
-
-    // Add platform fee accrual entry
-    const { error: platformLedgerError } = await supabase
-      .from('fee_accrual_ledger')
-      .insert({
-        token_id: token.id,
-        entry_type: 'ACCRUAL',
-        beneficiary_kind: 'PLATFORM',
-        beneficiary_wallet: null,
-        amount_lamports: 0, // Initial amount is 0
-        agreement_version_id: royaltyAgreement.id
-      });
-
-    if (platformLedgerError) {
-      console.error('❌ Error initializing platform fee accrual:', platformLedgerError);
-      // Don't fail the entire request for this
-    } else {
-      console.log('✅ Platform fee accrual initialized');
-    }
+    // Note: Fee accrual ledger initialization is now handled by the centralized royalty update function
+    console.log('✅ Token creation completed successfully');
 
     return NextResponse.json({
       success: true,

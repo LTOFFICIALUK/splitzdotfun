@@ -152,7 +152,7 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
     setIsUpdatingShares(true);
 
     try {
-      const response = await fetch('/api/update-royalty-shares', {
+      const response = await fetch('/api/royalty-shares/update', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
           platform_fee_bps: platformFeeBps,
           royalty_shares: editingShares,
           updated_by_user_id: userProfile?.id,
-          reason: 'Updated via token management interface'
+          reason: 'management_change'
         }),
       });
 
