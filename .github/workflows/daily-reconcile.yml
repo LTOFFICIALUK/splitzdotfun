@@ -1,0 +1,68 @@
+name: Daily Reconciliation
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # Daily at 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reconcile fees via API
+        id: reconcile
+        env:
+          PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PUBLIC_SITE_URL:-}" ]; then
+            echo "PUBLIC_SITE_URL secret is required (e.g., your production domain)" >&2
+            exit 1
+          fi
+          echo "Calling reconciliation endpoint..."
+          RESPONSE=$(curl -sS -f "${PUBLIC_SITE_URL}/api/reconcile-fees")
+          echo "$RESPONSE" | jq '.'
+          HAS_FAILURES=$(echo "$RESPONSE" | jq -r '.has_failures')
+          if [ "$HAS_FAILURES" = "true" ]; then
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+            echo "Reconciliation detected failures." >&2
+            echo "$RESPONSE" > reconcile_report.json
+            exit 2
+          else
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+            echo "$RESPONSE" > reconcile_report.json
+          fi
+
+      - name: Upload reconciliation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconcile-report
+          path: reconcile_report.json
+
+      - name: Notify Slack (optional)
+        if: failure() || steps.reconcile.outputs.has_failures == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+            STATUS="FAILED"
+            curl -s -X POST -H 'Content-type: application/json' --data "$(jq -n --arg text "Daily Reconciliation: $STATUS. See artifact for details." '{text: $text}')" "$SLACK_WEBHOOK_URL" || true
+          else
+            echo "SLACK_WEBHOOK_URL not set; skipping Slack notification"
+          fi
+
+      - name: Notify Discord (optional)
+        if: failure() || steps.reconcile.outputs.has_failures == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+            STATUS="FAILED"
+            curl -s -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg content "Daily Reconciliation: $STATUS. See artifact for details." '{content: $content}')" "$DISCORD_WEBHOOK_URL" || true
+          else
+            echo "DISCORD_WEBHOOK_URL not set; skipping Discord notification"
+          fi

@@ -57,7 +57,7 @@ export default function MarketplacePage() {
   const [activeTab, setActiveTab] = useState<'listings' | 'auctions'>('listings');
   const [sortBy, setSortBy] = useState('newest');
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
-  const [auctions, setAuctions] = useState<MarketplaceAuction[]>([]);
+  const [auctions, setAuctions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marketplaceStats, setMarketplaceStats] = useState({
@@ -72,9 +72,10 @@ export default function MarketplacePage() {
         setLoading(true);
         setError(null);
 
-        // Fetch listings and marketplace stats in parallel
-        const [listingsResponse, statsResponse] = await Promise.all([
+        // Fetch listings, auctions, and marketplace stats in parallel
+        const [listingsResponse, auctionsResponse, statsResponse] = await Promise.all([
           fetch('/api/marketplace/listings?activeOnly=true'),
+          fetch('/api/marketplace/auctions?status=active'),
           fetch('/api/marketplace-sales?include_stats=true')
         ]);
         
@@ -82,11 +83,16 @@ export default function MarketplacePage() {
           throw new Error('Failed to fetch marketplace listings');
         }
 
+        if (!auctionsResponse.ok) {
+          throw new Error('Failed to fetch marketplace auctions');
+        }
+
         if (!statsResponse.ok) {
           throw new Error('Failed to fetch marketplace stats');
         }
 
         const result = await listingsResponse.json();
+        const auctionsResult = await auctionsResponse.json();
         const statsResult = await statsResponse.json();
         
         if (result.success) {
@@ -106,8 +112,13 @@ export default function MarketplacePage() {
           }));
 
           setListings(transformedListings);
-          // No auctions for now, only listings - provide empty array with proper type
-          setAuctions([]);
+          
+          // Set auctions if available
+          if (auctionsResult.success) {
+            setAuctions(auctionsResult.data || []);
+          } else {
+            setAuctions([]);
+          }
           
           // Set marketplace stats if available
           if (statsResult.success && statsResult.stats) {

@@ -109,7 +109,7 @@ async function transferAllInitialBuyTokensToUser(tokenMint: PublicKey, userWalle
       { commitment: 'confirmed' }
     );
 
-    const sourceBalResp = await connection.getTokenAccountBalance(sourceAta, { commitment: 'confirmed' });
+    const sourceBalResp = await connection.getTokenAccountBalance(sourceAta, 'confirmed');
     const ui = sourceBalResp.value.uiAmount;
     if (!ui || ui <= 0) {
       console.log('ℹ️ No base tokens to transfer from platform wallet.');

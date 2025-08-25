@@ -106,6 +106,137 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
       day: 'numeric'
     });
   };
+
+  // Claim fees for connected wallet
+  const handleClaimFees = async () => {
+    if (!isConnected || !publicKey || !tokenData?.id) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    setIsProcessingPayout(true);
+
+    try {
+      const response = await fetch('/api/payout-royalties', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token_id: tokenData.id,
+          earner_wallet: publicKey.toString(),
+          claim_reason: 'Claim fees for connected wallet',
+          claimer_user_id: userProfile?.id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`Successfully claimed ${result.data.amount_sol} SOL! Transaction: ${result.data.transaction_signature}`);
+      } else {
+        alert(result.error);
+      }
+    } catch (error) {
+      alert('Network error occurred');
+      console.error('Payout error:', error);
+    } finally {
+      setIsProcessingPayout(false);
+    }
+  };
+
+  // Fee share management functions
+  const handleUpdateRoyaltyShares = async () => {
+    if (!tokenData?.id) return;
+
+    setIsUpdatingShares(true);
+
+    try {
+      const response = await fetch('/api/update-royalty-shares', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token_id: tokenData.id,
+          platform_fee_bps: platformFeeBps,
+          royalty_shares: editingShares,
+          updated_by_user_id: userProfile?.id,
+          reason: 'Updated via token management interface'
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('Royalty shares updated successfully!');
+        setShowFeeShareModal(false);
+        
+        // Refresh royalty shares data
+        const sharesResponse = await fetch(`/api/royalty-shares?token_id=${tokenData.id}`);
+        if (sharesResponse.ok) {
+          const sharesResult = await sharesResponse.json();
+          if (sharesResult.success) {
+            setRoyaltyShares(sharesResult.data);
+          }
+        }
+      } else {
+        alert(result.error || 'Failed to update royalty shares');
+      }
+    } catch (error) {
+      alert('Network error occurred');
+      console.error('Update royalty shares error:', error);
+    } finally {
+      setIsUpdatingShares(false);
+    }
+  };
+
+  const addRoyaltyShare = () => {
+    setEditingShares([...editingShares, {
+      earner_wallet: '',
+      bps: 0,
+      percentage: 0
+    }]);
+  };
+
+  const removeRoyaltyShare = (index: number) => {
+    setEditingShares(editingShares.filter((_, i) => i !== index));
+  };
+
+  const updateRoyaltyShare = (index: number, field: string, value: string | number) => {
+    const updated = [...editingShares];
+    if (field === 'earner_wallet') {
+      updated[index].earner_wallet = value as string;
+    } else if (field === 'percentage') {
+      const percentage = parseFloat(value as string) || 0;
+      updated[index].percentage = percentage;
+      updated[index].bps = Math.round(percentage * 100);
+    }
+    setEditingShares(updated);
+  };
+
+  const calculateTotalEarnerPercentage = () => {
+    return editingShares.reduce((sum, share) => sum + share.percentage, 0);
+  };
+
+  const calculateTotalEarnerBps = () => {
+    return editingShares.reduce((sum, share) => sum + share.bps, 0);
+  };
+
+  const getValidationError = () => {
+    const totalEarnerBps = calculateTotalEarnerBps();
+    const expectedEarnerBps = 10000 - platformFeeBps;
+    
+    if (totalEarnerBps !== expectedEarnerBps) {
+      return `Total earner shares must equal ${expectedEarnerBps / 100}% (currently ${totalEarnerBps / 100}%)`;
+    }
+    
+    if (editingShares.some(share => !share.earner_wallet.trim())) {
+      return 'All earners must have a wallet address';
+    }
+    
+    return null;
+  };
   const [tokenData, setTokenData] = useState<TokenManagementData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +273,20 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
   });
   const [isCreatingListing, setIsCreatingListing] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // Payout system state
+  const [isProcessingPayout, setIsProcessingPayout] = useState(false);
+  
+  // Fee share management state
+  const [royaltyShares, setRoyaltyShares] = useState<any>(null);
+  const [showFeeShareModal, setShowFeeShareModal] = useState(false);
+  const [isUpdatingShares, setIsUpdatingShares] = useState(false);
+  const [editingShares, setEditingShares] = useState<Array<{
+    earner_wallet: string;
+    bps: number;
+    percentage: number;
+  }>>([]);
+  const [platformFeeBps, setPlatformFeeBps] = useState(2000); // Default 20%
 
   useEffect(() => {
     const fetchTokenData = async () => {
@@ -160,6 +305,19 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
         
         if (result.success) {
           setTokenData(result.data);
+          
+          // Fetch royalty shares data
+          const sharesResponse = await fetch(`/api/royalty-shares?token_id=${result.data.id}`);
+          if (sharesResponse.ok) {
+            const sharesResult = await sharesResponse.json();
+            if (sharesResult.success) {
+              setRoyaltyShares(sharesResult.data);
+              if (sharesResult.data.current_agreement) {
+                setPlatformFeeBps(sharesResult.data.current_agreement.platform_fee_bps);
+                setEditingShares(sharesResult.data.current_agreement.royalty_shares);
+              }
+            }
+          }
         } else {
           throw new Error(result.error || 'Failed to fetch token data');
         }
@@ -193,6 +351,8 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
 
     fetchUserProfile();
   }, [isConnected, publicKey]);
+
+
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -451,8 +611,12 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
                   {formatChange(tokenData.priceChange24h)}
                 </p>
                 <div className="mt-3 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                  <button className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-3 sm:px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity whitespace-nowrap text-sm sm:text-base">
-                    Claim Your Fees
+                  <button 
+                    onClick={handleClaimFees}
+                    disabled={isProcessingPayout}
+                    className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-3 sm:px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity whitespace-nowrap text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isProcessingPayout ? 'Processing...' : 'Claim Your Fees'}
                   </button>
                   {tokenData.isListed ? (
                     <button 
@@ -553,6 +717,87 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
                       <p className="text-lg font-semibold text-text-primary">{tokenData.feesGenerated === null || isNaN(tokenData.feesGenerated) ? 'NaN' : `${tokenData.feesGenerated.toFixed(1)} SOL`}</p>
                     </div>
                   </div>
+
+                  {/* Fee Share Management */}
+                  <div className="w-full bg-background-dark rounded-lg p-6 border border-background-elevated">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-text-primary">Fee Share Management</h3>
+                      <button
+                        onClick={() => setShowFeeShareModal(true)}
+                        className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                      >
+                        Manage Fee Shares
+                      </button>
+                    </div>
+
+                    {royaltyShares?.current_agreement ? (
+                      <div className="space-y-4">
+                        {/* Platform Fee */}
+                        <div className="flex items-center justify-between p-3 bg-background-elevated rounded-lg">
+                          <div>
+                            <p className="text-text-primary font-medium">Platform Fee</p>
+                            <p className="text-text-secondary text-sm">Splitz takes this percentage</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-text-primary font-semibold">{royaltyShares.current_agreement.platform_fee_percentage}%</p>
+                            <p className="text-text-secondary text-xs">Effective {formatDate(royaltyShares.current_agreement.effective_from)}</p>
+                          </div>
+                        </div>
+
+                        {/* Royalty Earners */}
+                        <div className="space-y-2">
+                          <p className="text-text-primary font-medium">Royalty Earners</p>
+                          {royaltyShares.current_agreement.royalty_shares.map((share: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-background-elevated rounded-lg">
+                              <div>
+                                <p className="text-text-primary font-medium">{formatAddress(share.earner_wallet)}</p>
+                                <p className="text-text-secondary text-xs">Earner {index + 1}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-text-primary font-semibold">{share.percentage}%</p>
+                                <p className="text-text-secondary text-xs">{share.bps} bps</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Historical Versions */}
+                        {royaltyShares.historical_versions && royaltyShares.historical_versions.length > 1 && (
+                          <div className="mt-4">
+                            <p className="text-text-primary font-medium mb-2">Version History</p>
+                            <div className="space-y-2">
+                              {royaltyShares.historical_versions.slice(1).map((version: any, index: number) => (
+                                <div key={version.id} className="p-3 bg-background-elevated rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-text-secondary text-sm">Version {royaltyShares.historical_versions.length - index - 1}</p>
+                                    <p className="text-text-secondary text-xs">
+                                      {formatDate(version.effective_from)} - {version.effective_to ? formatDate(version.effective_to) : 'Active'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-text-secondary text-xs">Platform: {version.platform_fee_percentage}%</p>
+                                    <p className="text-text-secondary text-xs">{version.royalty_shares.length} earners</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-text-secondary mb-2">No fee share agreement found</p>
+                        <button
+                          onClick={() => setShowFeeShareModal(true)}
+                          className="bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                        >
+                          Set Up Fee Shares
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+
 
 
                 </div>
@@ -917,6 +1162,8 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
         </div>
       </main>
 
+
+
       {/* Listing Modal */}
       {showListingModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1264,6 +1511,150 @@ const TokenManagePage: React.FC<TokenManagePageProps> = ({ params }) => {
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fee Share Management Modal */}
+      {showFeeShareModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background-card rounded-xl border border-background-elevated max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-text-primary">Manage Fee Shares</h2>
+                <button
+                  onClick={() => setShowFeeShareModal(false)}
+                  className="text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Platform Fee */}
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Platform Fee (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={platformFeeBps / 100}
+                    onChange={(e) => setPlatformFeeBps(Math.round((parseFloat(e.target.value) || 0) * 100))}
+                    className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                    placeholder="20"
+                  />
+                  <p className="text-text-secondary text-xs mt-1">Splitz takes this percentage of fees</p>
+                </div>
+
+                {/* Royalty Earners */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-text-primary">Royalty Earners</label>
+                    <button
+                      onClick={addRoyaltyShare}
+                      className="text-primary-mint hover:text-primary-aqua transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {editingShares.map((share, index) => (
+                      <div key={index} className="flex items-center space-x-3 p-3 bg-background-elevated rounded-lg">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={share.earner_wallet}
+                            onChange={(e) => updateRoyaltyShare(index, 'earner_wallet', e.target.value)}
+                            placeholder="Wallet address"
+                            className="w-full px-3 py-2 bg-background-dark border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                          />
+                        </div>
+                        <div className="w-24">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={share.percentage}
+                            onChange={(e) => updateRoyaltyShare(index, 'percentage', e.target.value)}
+                            placeholder="%"
+                            className="w-full px-3 py-2 bg-background-dark border border-background-elevated rounded text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-mint"
+                          />
+                        </div>
+                        <button
+                          onClick={() => removeRoyaltyShare(index)}
+                          className="text-red-400 hover:text-red-300 transition-colors p-1"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Validation */}
+                {getValidationError() && (
+                  <div className="p-3 bg-red-400/10 border border-red-400/20 rounded-lg">
+                    <p className="text-red-400 text-sm">{getValidationError()}</p>
+                  </div>
+                )}
+
+                {/* Summary */}
+                <div className="p-4 bg-background-dark rounded-lg border border-background-elevated">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-text-secondary">Platform Fee:</span>
+                      <span className="text-sm text-text-primary">{platformFeeBps / 100}%</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-text-secondary">Earner Shares:</span>
+                      <span className="text-sm text-text-primary">{calculateTotalEarnerPercentage()}%</span>
+                    </div>
+                    <div className="border-t border-background-elevated pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-text-primary">Total:</span>
+                        <span className={`text-sm font-bold ${
+                          (platformFeeBps / 100 + calculateTotalEarnerPercentage()) === 100 
+                            ? 'text-green-400' 
+                            : 'text-red-400'
+                        }`}>
+                          {(platformFeeBps / 100 + calculateTotalEarnerPercentage()).toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3 pt-6 border-t border-background-elevated">
+                <button
+                  onClick={() => setShowFeeShareModal(false)}
+                  className="flex-1 bg-background-elevated text-text-primary px-4 py-3 rounded-lg font-medium hover:bg-background-dark transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateRoyaltyShares}
+                  disabled={!!getValidationError() || isUpdatingShares}
+                  className={`flex-1 px-4 py-3 rounded-lg font-medium transition-opacity flex items-center justify-center space-x-2 ${
+                    !getValidationError() && !isUpdatingShares
+                      ? 'bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark hover:opacity-90'
+                      : 'bg-background-elevated text-text-secondary cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  {isUpdatingShares ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background-dark"></div>
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    'Update Fee Shares'
+                  )}
+                </button>
               </div>
             </div>
           </div>

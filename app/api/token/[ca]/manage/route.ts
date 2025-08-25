@@ -137,9 +137,29 @@ export async function GET(
     console.log('Parsed fees owed:', feesOwedPerEarner);
     console.log('Parsed fees claimed:', feesClaimedPerEarner);
 
-    // TODO: Implement new fee fetching logic here
-    // BAGS API calls have been removed and need to be replaced with new implementation
-    let updatedFeesGenerated = tokenData.fees_generated;
+    // Get current fee balances from our professional tracking system
+    const { data: tokenBalance, error: balanceError } = await supabase
+      .from('token_balances_v')
+      .select('*')
+      .eq('token_id', tokenData.id)
+      .single();
+
+    if (balanceError) {
+      console.error('Error fetching token balance:', balanceError);
+    }
+
+    // Get earner balances from our professional tracking system
+    const { data: earnerBalances, error: earnerBalanceError } = await supabase
+      .from('earner_token_balances_v')
+      .select('*')
+      .eq('token_id', tokenData.id);
+
+    if (earnerBalanceError) {
+      console.error('Error fetching earner balances:', earnerBalanceError);
+    }
+
+    // Use the professional fee tracking data
+    let updatedFeesGenerated = tokenBalance?.lifetime_total_lamports ? tokenBalance.lifetime_total_lamports / 1e9 : tokenData.fees_generated;
 
     // Transform data to match the interface
     const transformedData = {
@@ -161,27 +181,35 @@ export async function GET(
       feesGenerated: updatedFeesGenerated ? parseFloat(updatedFeesGenerated) : (tokenData.fees_generated ? parseFloat(tokenData.fees_generated) : null),
               royaltyRecipients: royaltyEarners.map((earner: any, index: number) => {
           const walletAddress = earner.social_or_wallet || 'NaN';
+          
+          // Get professional fee tracking data for this earner
+          const earnerBalance = earnerBalances?.find((balance: any) => 
+            balance.earner_wallet === walletAddress
+          );
+          
+          // Use professional tracking data if available, fallback to old data
           let earned = 0;
           let claimed = 0;
           
-          // Get actual earned amount from fees_owed_per_earner (preserves historical earnings)
-          const feesOwedObj = feesOwedPerEarner as { [key: string]: string };
-          if (typeof feesOwedPerEarner === 'object' && feesOwedObj[walletAddress]) {
-            earned = parseFloat(feesOwedObj[walletAddress] || '0');
-          } else if (typeof feesOwedPerEarner === 'object' && feesOwedObj.default) {
-            // If fees are stored as a single value, distribute equally or use the percentage
-            earned = parseFloat(feesOwedObj.default || '0') * (earner.percentage / 100);
+          if (earnerBalance) {
+            // Use our professional fee tracking system
+            earned = earnerBalance.earned_total_lamports / 1e9; // Convert from lamports to SOL
+            claimed = earnerBalance.paid_total_lamports / 1e9; // Convert from lamports to SOL
           } else {
-            // Fallback to 0 if no data available
-            earned = 0;
-          }
-          
-          // Handle claimed fees from existing data
-          const feesClaimedObj = feesClaimedPerEarner as { [key: string]: string };
-          if (typeof feesClaimedPerEarner === 'object' && feesClaimedObj[walletAddress]) {
-            claimed = parseFloat(feesClaimedObj[walletAddress] || '0');
-          } else if (typeof feesClaimedPerEarner === 'object' && feesClaimedObj.default) {
-            claimed = parseFloat(feesClaimedObj.default || '0') * (earner.percentage / 100);
+            // Fallback to old data (for backward compatibility)
+            const feesOwedObj = feesOwedPerEarner as { [key: string]: string };
+            if (typeof feesOwedPerEarner === 'object' && feesOwedObj[walletAddress]) {
+              earned = parseFloat(feesOwedObj[walletAddress] || '0');
+            } else if (typeof feesOwedPerEarner === 'object' && feesOwedObj.default) {
+              earned = parseFloat(feesOwedObj.default || '0') * (earner.percentage / 100);
+            }
+            
+            const feesClaimedObj = feesClaimedPerEarner as { [key: string]: string };
+            if (typeof feesClaimedPerEarner === 'object' && feesClaimedObj[walletAddress]) {
+              claimed = parseFloat(feesClaimedObj[walletAddress] || '0');
+            } else if (typeof feesClaimedPerEarner === 'object' && feesClaimedObj.default) {
+              claimed = parseFloat(feesClaimedObj.default || '0') * (earner.percentage / 100);
+            }
           }
         
         return {

@@ -1,0 +1,131 @@
+name: End Expired Auctions
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  end-expired-auctions:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: End Expired Auctions
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+          );
+          
+          async function endExpiredAuctions() {
+            try {
+              console.log('🔍 Checking for expired auctions...');
+              
+              // Get all active auctions that have ended
+              const { data: expiredAuctions, error: fetchError } = await supabase
+                .from('marketplace_auctions')
+                .select('*')
+                .eq('status', 'active')
+                .lt('auction_end', new Date().toISOString());
+              
+              if (fetchError) {
+                console.error('❌ Error fetching expired auctions:', fetchError);
+                process.exit(1);
+              }
+              
+              if (!expiredAuctions || expiredAuctions.length === 0) {
+                console.log('✅ No expired auctions found');
+                return;
+              }
+              
+              console.log(`📋 Found ${expiredAuctions.length} expired auction(s)`);
+              
+              let endedCount = 0;
+              let soldCount = 0;
+              
+              for (const auction of expiredAuctions) {
+                console.log(`\n🔨 Processing auction ${auction.id}...`);
+                
+                // Determine if auction has a winner
+                let updateData = {
+                  status: 'ended',
+                  updated_at: new Date().toISOString()
+                };
+                
+                if (auction.current_bidder_user_id && auction.current_bid >= (auction.reserve_price || 0)) {
+                  // Auction has a winner
+                  updateData.status = 'sold';
+                  updateData.winner_user_id = auction.current_bidder_user_id;
+                  updateData.winning_bid = auction.current_bid;
+                  
+                  // Create auction winner record
+                  const { error: winnerError } = await supabase
+                    .from('auction_winners')
+                    .insert({
+                      auction_id: auction.id,
+                      winner_user_id: auction.current_bidder_user_id,
+                      winning_bid: auction.current_bid,
+                      payment_status: 'pending'
+                    });
+                  
+                  if (winnerError) {
+                    console.error(`❌ Error creating winner record for auction ${auction.id}:`, winnerError);
+                    continue;
+                  }
+                  
+                  soldCount++;
+                  console.log(`✅ Auction ${auction.id} sold for ${auction.current_bid} SOL`);
+                } else {
+                  console.log(`❌ Auction ${auction.id} ended without meeting reserve price`);
+                }
+                
+                // Update auction status
+                const { error: updateError } = await supabase
+                  .from('marketplace_auctions')
+                  .update(updateData)
+                  .eq('id', auction.id);
+                
+                if (updateError) {
+                  console.error(`❌ Error updating auction ${auction.id}:`, updateError);
+                  continue;
+                }
+                
+                endedCount++;
+              }
+              
+              console.log(`\n📊 Summary:`);
+              console.log(`   • Total auctions processed: ${expiredAuctions.length}`);
+              console.log(`   • Auctions ended: ${endedCount}`);
+              console.log(`   • Auctions sold: ${soldCount}`);
+              console.log(`   • Auctions failed to meet reserve: ${endedCount - soldCount}`);
+              
+            } catch (error) {
+              console.error('❌ Unexpected error:', error);
+              process.exit(1);
+            }
+          }
+          
+          endExpiredAuctions();
+          "
+
+      - name: Log Results
+        run: echo "✅ Expired auctions check completed"

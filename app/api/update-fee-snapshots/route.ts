@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { BagsSDK } from '@bagsfm/bags-sdk';
-import { Connection } from '@solana/web3.js';
 
 // Initialize Supabase client with service role key
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-// Initialize Bags SDK
-const bagsSDK = new BagsSDK(
-  process.env.BAGS_API_KEY!,
-  new Connection(process.env.SOLANA_RPC_URL!),
-  'processed'
 );
 
 export async function POST(request: NextRequest) {
@@ -56,15 +47,20 @@ export async function POST(request: NextRequest) {
 
       for (const token of tokens) {
         try {
-          // Get current lifetime fees from Bags API
-          const lifetimeFees = await bagsSDK.token.getLifetimeFees(token.contract_address);
-          
-          if (!lifetimeFees || typeof lifetimeFees.lifetimeFees !== 'number') {
-            console.warn(`⚠️ No lifetime fees data for token ${token.contract_address}`);
+          // Get current lifetime fees from token_ownership table (this should be updated by the GitHub Action)
+          const { data: ownership, error: ownershipError } = await supabase
+            .from('token_ownership')
+            .select('fees_generated')
+            .eq('token_id', token.id)
+            .single();
+
+          if (ownershipError || !ownership) {
+            console.warn(`⚠️ No ownership data for token ${token.contract_address}`);
             continue;
           }
 
-          const lifetimeFeesLamports = Math.floor(lifetimeFees.lifetimeFees * 1e9); // Convert SOL to lamports
+          // Convert fees_generated from SOL to lamports
+          const lifetimeFeesLamports = Math.floor((ownership.fees_generated || 0) * 1e9);
 
           // Get the last snapshot for this token
           const { data: lastSnapshot } = await supabase
@@ -88,9 +84,8 @@ export async function POST(request: NextRequest) {
               .insert({
                 token_id: token.id,
                 lifetime_fees_lamports_after: lifetimeFeesLamports,
-                bags_block_time: lifetimeFees.blockTime,
                 job_run_id: jobRunId,
-                source_ref: `bags_lifetime_${Date.now()}`
+                source_ref: `database_snapshot_${Date.now()}`
               })
               .select()
               .single();

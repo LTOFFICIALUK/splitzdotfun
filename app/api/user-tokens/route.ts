@@ -128,8 +128,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // Process and format the data
-    const processTokens = (tokens: any[], type: 'owned' | 'royalty' | 'deployed') => {
-      return tokens.map(item => {
+    const processTokens = async (tokens: any[], type: 'owned' | 'royalty' | 'deployed') => {
+      const processedTokens = await Promise.all(tokens.map(async item => {
         if (type === 'deployed') {
           // For deployed tokens, simplified structure
           const token = item;
@@ -171,33 +171,61 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             }
           }
 
-          // Parse fees_owed_per_earner from JSON string
-          let feesOwedPerEarner = {};
-          if (ownership.fees_owed_per_earner) {
-            try {
-              if (typeof ownership.fees_owed_per_earner === 'string') {
-                feesOwedPerEarner = JSON.parse(ownership.fees_owed_per_earner);
-              } else if (typeof ownership.fees_owed_per_earner === 'object') {
-                feesOwedPerEarner = ownership.fees_owed_per_earner;
-              }
-            } catch (e) {
-              console.error('Error parsing fees_owed_per_earner:', e);
-              feesOwedPerEarner = {};
-            }
-          }
+          // Get professional fee tracking data for this token
+          const { data: tokenBalance, error: balanceError } = await supabase
+            .from('token_balances_v')
+            .select('*')
+            .eq('token_id', token.id)
+            .single();
 
-          // Parse fees_claimed_per_earner from JSON string
-          let feesClaimedPerEarner = {};
-          if (ownership.fees_claimed_per_earner) {
-            try {
-              if (typeof ownership.fees_claimed_per_earner === 'string') {
-                feesClaimedPerEarner = JSON.parse(ownership.fees_claimed_per_earner);
-              } else if (typeof ownership.fees_claimed_per_earner === 'object') {
-                feesClaimedPerEarner = ownership.fees_claimed_per_earner;
+          const { data: earnerBalances, error: earnerBalanceError } = await supabase
+            .from('earner_token_balances_v')
+            .select('*')
+            .eq('token_id', token.id);
+
+          // Use professional fee tracking data
+          let feesOwedPerEarner: { [key: string]: number } = {};
+          let feesClaimedPerEarner: { [key: string]: number } = {};
+          let totalFeesEarned = 0;
+          let totalFeesClaimed = 0;
+
+          if (!earnerBalanceError && earnerBalances) {
+            earnerBalances.forEach((balance: any) => {
+              const earnedSol = balance.earned_total_lamports / 1e9;
+              const paidSol = balance.paid_total_lamports / 1e9;
+              
+              feesOwedPerEarner[balance.earner_wallet] = earnedSol;
+              feesClaimedPerEarner[balance.earner_wallet] = paidSol;
+              
+              totalFeesEarned += earnedSol;
+              totalFeesClaimed += paidSol;
+            });
+          } else {
+            // Fallback to old data (for backward compatibility)
+            if (ownership.fees_owed_per_earner) {
+              try {
+                if (typeof ownership.fees_owed_per_earner === 'string') {
+                  feesOwedPerEarner = JSON.parse(ownership.fees_owed_per_earner);
+                } else if (typeof ownership.fees_owed_per_earner === 'object') {
+                  feesOwedPerEarner = ownership.fees_owed_per_earner;
+                }
+              } catch (e) {
+                console.error('Error parsing fees_owed_per_earner:', e);
+                feesOwedPerEarner = {};
               }
-            } catch (e) {
-              console.error('Error parsing fees_claimed_per_earner:', e);
-              feesClaimedPerEarner = {};
+            }
+
+            if (ownership.fees_claimed_per_earner) {
+              try {
+                if (typeof ownership.fees_claimed_per_earner === 'string') {
+                  feesClaimedPerEarner = JSON.parse(ownership.fees_claimed_per_earner);
+                } else if (typeof ownership.fees_claimed_per_earner === 'object') {
+                  feesClaimedPerEarner = ownership.fees_claimed_per_earner;
+                }
+              } catch (e) {
+                console.error('Error parsing fees_claimed_per_earner:', e);
+                feesClaimedPerEarner = {};
+              }
             }
           }
 
@@ -209,23 +237,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             image_url: token.image_url,
             social_link: token.social_link,
             created_at: token.created_at,
-            fees_generated: token.fees_generated || 0,
+            fees_generated: tokenBalance?.lifetime_total_lamports ? tokenBalance.lifetime_total_lamports / 1e9 : (token.fees_generated || 0),
             current_owner: ownership.current_owner,
             royalty_earners: royaltyEarners,
-            total_fees_earned: ownership.total_fees_earned || 0,
+            total_fees_earned: totalFeesEarned,
             fees_owed_per_earner: feesOwedPerEarner,
             fees_claimed_per_earner: feesClaimedPerEarner,
-            total_fees_claimed: ownership.total_fees_claimed || 0,
+            total_fees_claimed: totalFeesClaimed,
             type
           };
         }
-      });
+      }));
+      
+      return processedTokens;
     };
 
     const result = {
-      owned: processTokens(ownedTokens || [], 'owned'),
-      royalty: processTokens(royaltyTokens || [], 'royalty'),
-      deployed: processTokens(deployedTokens || [], 'deployed')
+      owned: await processTokens(ownedTokens || [], 'owned'),
+      royalty: await processTokens(royaltyTokens || [], 'royalty'),
+      deployed: await processTokens(deployedTokens || [], 'deployed')
     };
 
     console.log(`✅ Found ${result.owned.length} owned, ${result.royalty.length} royalty, ${result.deployed.length} deployed tokens`);

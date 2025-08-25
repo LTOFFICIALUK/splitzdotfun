@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "claim-fees": "ts-node scripts/claim-fees.ts"
   },
   "dependencies": {
     "@bagsfm/bags-sdk": "^1.0.3",
