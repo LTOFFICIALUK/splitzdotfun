@@ -142,7 +142,7 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               {isConnected && (
                 <NotificationCenter 
                   userId={publicKey?.toString() || ''} 
-                  className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                  className="h-10 w-10 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
                 />
               )}
               
