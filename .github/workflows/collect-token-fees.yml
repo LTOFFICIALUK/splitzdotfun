@@ -1,0 +1,183 @@
+name: Collect Token Fees
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  collect-token-fees:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Collect Token Fees
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+          );
+          
+          async function collectTokenFees() {
+            try {
+              console.log('🔍 Checking for active token fee periods...');
+              
+              // Get all active fee periods
+              const { data: activePeriods, error: fetchError } = await supabase
+                .from('token_fee_periods')
+                .select(`
+                  *,
+                  tokens (
+                    id,
+                    name,
+                    symbol,
+                    contract_address
+                  )
+                `)
+                .eq('status', 'active')
+                .gte('period_end', new Date().toISOString()); // Only active periods
+              
+              if (fetchError) {
+                console.error('❌ Error fetching active periods:', fetchError);
+                process.exit(1);
+              }
+              
+              if (!activePeriods || activePeriods.length === 0) {
+                console.log('✅ No active token fee periods found');
+                return;
+              }
+              
+              console.log(`📋 Found ${activePeriods.length} active fee period(s)`);
+              
+              let totalFeesCollected = 0;
+              let periodsProcessed = 0;
+              let completedPeriods = 0;
+              
+              for (const period of activePeriods) {
+                console.log(`\n💰 Processing fee period for ${period.tokens.name} (${period.tokens.symbol})...`);
+                
+                try {
+                  // Get the latest fee snapshot for this token
+                  const { data: latestSnapshot, error: snapshotError } = await supabase
+                    .from('token_fee_snapshots')
+                    .select('lifetime_fees_lamports_after')
+                    .eq('token_id', period.token_id)
+                    .order('fetched_at', { ascending: false })
+                    .limit(1)
+                    .single();
+                  
+                  if (snapshotError || !latestSnapshot) {
+                    console.log(`⚠️  No fee snapshot found for ${period.tokens.symbol}, skipping...`);
+                    continue;
+                  }
+                  
+                  // Calculate fees generated since period start
+                  const feesGenerated = latestSnapshot.lifetime_fees_lamports_after - period.total_fees_generated_lamports;
+                  
+                  if (feesGenerated <= 0) {
+                    console.log(`ℹ️  No new fees generated for ${period.tokens.symbol}`);
+                    continue;
+                  }
+                  
+                  // Calculate platform's 10% share
+                  const platformFeeLamports = Math.floor((feesGenerated * period.fee_percentage) / 100);
+                  
+                  if (platformFeeLamports <= 0) {
+                    console.log(`ℹ️  Platform fee too small for ${period.tokens.symbol}`);
+                    continue;
+                  }
+                  
+                  // Update the fee period with new fees
+                  const { error: updateError } = await supabase
+                    .from('token_fee_periods')
+                    .update({
+                      total_fees_generated_lamports: period.total_fees_generated_lamports + feesGenerated,
+                      platform_fee_collected_lamports: period.platform_fee_collected_lamports + platformFeeLamports,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', period.id);
+                  
+                  if (updateError) {
+                    console.error(`❌ Error updating fee period ${period.id}:`, updateError);
+                    continue;
+                  }
+                  
+                  // Record platform revenue
+                  const { error: revenueError } = await supabase
+                    .from('platform_revenue')
+                    .insert({
+                      revenue_type: 'token_fee',
+                      amount_lamports: platformFeeLamports,
+                      source_token_id: period.token_id,
+                      fee_period_id: period.id,
+                      status: 'collected'
+                    });
+                  
+                  if (revenueError) {
+                    console.error(`❌ Error recording platform revenue:`, revenueError);
+                    continue;
+                  }
+                  
+                  totalFeesCollected += platformFeeLamports;
+                  periodsProcessed++;
+                  
+                  console.log(`✅ Collected ${(platformFeeLamports / 1000000000).toFixed(6)} SOL from ${period.tokens.symbol}`);
+                  
+                  // Check if period has ended
+                  if (new Date() >= new Date(period.period_end)) {
+                    console.log(`🏁 Fee period for ${period.tokens.symbol} has ended, marking as completed`);
+                    
+                    const { error: completeError } = await supabase
+                      .from('token_fee_periods')
+                      .update({
+                        status: 'completed',
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', period.id);
+                    
+                    if (completeError) {
+                      console.error(`❌ Error completing fee period:`, completeError);
+                    } else {
+                      completedPeriods++;
+                    }
+                  }
+                  
+                } catch (periodError) {
+                  console.error(`❌ Error processing period ${period.id}:`, periodError);
+                }
+              }
+              
+              console.log(`\n📊 Summary:`);
+              console.log(`   • Periods processed: ${periodsProcessed}`);
+              console.log(`   • Periods completed: ${completedPeriods}`);
+              console.log(`   • Total fees collected: ${(totalFeesCollected / 1000000000).toFixed(6)} SOL`);
+              
+            } catch (error) {
+              console.error('❌ Unexpected error:', error);
+              process.exit(1);
+            }
+          }
+          
+          collectTokenFees();
+          "
+
+      - name: Log Results
+        run: echo "✅ Token fee collection completed"

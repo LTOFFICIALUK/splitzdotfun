@@ -111,10 +111,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
     
+    // Calculate platform fee (10% of sale price)
+    const salePriceLamports = Math.floor(saleData.sale_price_sol * 1000000000); // Convert SOL to lamports
+    const platformFeeLamports = Math.floor((salePriceLamports * 10) / 100); // 10% platform fee
+    const sellerAmountLamports = salePriceLamports - platformFeeLamports; // 90% to seller
+    
+    // Add platform fee calculations to sale data
+    const saleDataWithFees = {
+      ...saleData,
+      platform_fee_lamports: platformFeeLamports,
+      seller_amount_lamports: sellerAmountLamports
+    };
+    
     // Insert the sale
     const { data: sale, error } = await supabase
       .from('marketplace_sales')
-      .insert([saleData])
+      .insert([saleDataWithFees])
       .select()
       .single();
     
@@ -124,6 +136,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { success: false, error: 'Failed to create marketplace sale' },
         { status: 500 }
       );
+    }
+    
+    // Record platform revenue from sale fee
+    if (sale && sale.status === 'completed') {
+      const { error: revenueError } = await supabase
+        .from('platform_revenue')
+        .insert({
+          revenue_type: 'sale_fee',
+          amount_lamports: platformFeeLamports,
+          source_sale_id: sale.id,
+          source_token_id: sale.token_id,
+          status: 'collected'
+        });
+      
+      if (revenueError) {
+        console.error('❌ Error recording platform revenue:', revenueError);
+        // Don't fail the sale creation, just log the error
+      }
     }
     
     return NextResponse.json({
