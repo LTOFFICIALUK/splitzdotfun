@@ -146,6 +146,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           earnerWallet = earner.social_or_wallet || '';
         }
 
+        console.log('📝 Creating share for earner:', {
+          wallet: earner.wallet,
+          social_platform: earner.social_platform,
+          social_handle: earner.social_handle,
+          social_or_wallet: earner.social_or_wallet,
+          role: earner.role,
+          percentage: earner.percentage,
+          is_manager: earner.is_manager,
+          earner_wallet: earnerWallet,
+          bps: bps
+        });
+
         return {
           agreement_version_id: royaltyAgreement.id,
           earner_wallet: earnerWallet,
@@ -201,6 +213,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         } else {
           earnerWallet = earner.social_or_wallet || '';
         }
+
+        console.log('💰 Creating ledger entry for earner:', {
+          wallet: earner.wallet,
+          social_platform: earner.social_platform,
+          social_handle: earner.social_handle,
+          social_or_wallet: earner.social_or_wallet,
+          role: earner.role,
+          percentage: earner.percentage,
+          is_manager: earner.is_manager,
+          earner_wallet: earnerWallet
+        });
 
         return {
           token_id: token.id,

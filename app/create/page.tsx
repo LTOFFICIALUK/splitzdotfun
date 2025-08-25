@@ -432,14 +432,33 @@ const CreateCoin: React.FC = () => {
           image_url: formData.imageUrl,
           banner_url: formData.bannerUrl,
           metadata_url: launchData.tokenMetadata,
-          royalty_earners: royaltyRecipients.map(recipient => ({
-            wallet: recipient.type === 'wallet' ? recipient.identifier : null,
-            social_platform: recipient.type === 'social' ? recipient.identifier.split(':')[0] : null,
-            social_handle: recipient.type === 'social' ? recipient.identifier.split(':')[1] : null,
-            percentage: recipient.percentage,
-            role: recipient.role,
-            is_manager: recipient.isManager
-          }))
+          royalty_earners: royaltyRecipients.map(recipient => {
+            // Determine the wallet/identifier and platform info
+            let wallet = null;
+            let social_platform = null;
+            let social_handle = null;
+            let social_or_wallet = '';
+            
+            if (recipient.type === 'wallet') {
+              wallet = recipient.identifier;
+              social_or_wallet = recipient.identifier;
+            } else if (recipient.type === 'social') {
+              const [platform, handle] = recipient.identifier.split(':');
+              social_platform = platform;
+              social_handle = handle;
+              social_or_wallet = recipient.identifier;
+            }
+            
+            return {
+              wallet: wallet,
+              social_platform: social_platform,
+              social_handle: social_handle,
+              social_or_wallet: social_or_wallet,
+              percentage: recipient.percentage,
+              role: recipient.role,
+              is_manager: recipient.isManager
+            };
+          })
         }),
       });
 
