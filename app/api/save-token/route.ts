@@ -159,7 +159,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: true,
       token,
       ownership,
-      royalty_agreement: royaltyAgreement,
       message: 'Token, ownership, and royalty agreement data saved successfully'
     });
 
