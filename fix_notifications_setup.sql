@@ -91,13 +91,3 @@ ORDER BY total_count DESC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON notifications TO service_role;
 GRANT SELECT ON notification_stats TO service_role;
 GRANT SELECT ON notification_types_summary TO service_role;
-
--- Insert a test notification to verify the setup
-INSERT INTO notifications (user_id, type, title, message, data)
-VALUES (
-    'LT42y5yGt13TJUR8iLBu3y37PPYAB32GzDhMCQvJvEX',
-    'welcome',
-    'Welcome to Splitz!',
-    'Your wallet has been successfully connected.',
-    '{"action": "welcome"}'
-) ON CONFLICT DO NOTHING;
