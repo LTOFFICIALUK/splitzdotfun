@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { WalletProvider } from '@/components/ui/WalletProvider'
+import { ToastManager } from '@/components/ui/ToastNotification'
 
 export const metadata: Metadata = {
   title: 'SplitzFun - Clout → Cash. Launch, manage, and flip tokens like startups.',
@@ -17,7 +18,9 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-inter antialiased">
         <WalletProvider>
-          {children}
+          <ToastManager>
+            {children}
+          </ToastManager>
         </WalletProvider>
       </body>
     </html>

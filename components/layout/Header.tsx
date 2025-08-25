@@ -7,6 +7,7 @@ import NavLink from '../ui/NavLink';
 import SearchBar from '../ui/SearchBar';
 import Modal from '../ui/Modal';
 import ConnectWalletButton from '../ui/ConnectWalletButton';
+import NotificationCenter from '../ui/NotificationCenter';
 import { useWallet } from '../ui/WalletProvider';
 
 interface HeaderProps {
@@ -107,6 +108,15 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               >
                 <Search className="w-4 h-4" />
               </button>
+              
+              {/* Notification Center - Only show when connected */}
+              {isConnected && (
+                <NotificationCenter 
+                  userId={publicKey?.toString() || ''} 
+                  className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                />
+              )}
+              
               <Link
                 href="/create"
                 className="h-10 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none flex items-center justify-center"
@@ -127,6 +137,15 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               >
                 <Search className="w-4 h-4" />
               </button>
+              
+              {/* Notification Center - Only show when connected */}
+              {isConnected && (
+                <NotificationCenter 
+                  userId={publicKey?.toString() || ''} 
+                  className="h-10 px-3 rounded-lg bg-background-elevated text-text-secondary hover:text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                />
+              )}
+              
               <Link
                 href="/create"
                 className="h-10 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark px-3 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none flex items-center justify-center text-sm"
@@ -155,6 +174,15 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
               >
                 <Search className="w-5 h-5" />
               </button>
+              
+              {/* Notification Center - Only show when connected */}
+              {isConnected && (
+                <NotificationCenter 
+                  userId={publicKey?.toString() || ''} 
+                  className="h-10 w-10 rounded-lg bg-background-elevated text-text-primary hover:bg-background-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary-mint flex items-center justify-center"
+                />
+              )}
+              
               <Link
                 href="/create"
                 className="h-10 w-10 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none flex items-center justify-center"
