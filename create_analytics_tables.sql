@@ -72,10 +72,9 @@ SELECT
     pr.amount_sol,
     pr.collected_at,
     pr.created_at,
-    t.name as token_name,
-    t.symbol as token_symbol
-FROM platform_revenue pr
-LEFT JOIN tokens t ON pr.source_token_id = t.id;
+    'Unknown' as token_name,
+    'UNK' as token_symbol
+FROM platform_revenue pr;
 
 -- Indexes for Performance
 CREATE INDEX IF NOT EXISTS idx_auction_bids_auction_id ON auction_bids(auction_id);
