@@ -102,11 +102,153 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('✅ Token ownership saved successfully:', ownership.id);
 
+    // Create royalty agreement version
+    console.log('📋 Creating royalty agreement version...');
+    
+    const platformFeeBps = 1000; // 10% platform fee (1000 basis points)
+    
+    const { data: royaltyAgreement, error: agreementError } = await supabase
+      .from('royalty_agreement_versions')
+      .insert({
+        token_id: token.id,
+        platform_fee_bps: platformFeeBps,
+        effective_from: new Date().toISOString(),
+        created_by: deployer_user_id
+      })
+      .select()
+      .single();
+
+    if (agreementError) {
+      console.error('❌ Error creating royalty agreement:', agreementError);
+      return NextResponse.json(
+        { error: 'Failed to create royalty agreement', details: agreementError },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Royalty agreement created successfully:', royaltyAgreement.id);
+
+    // Create royalty shares for each earner
+    console.log('👥 Creating royalty shares for earners...');
+    
+    if (royalty_earners && royalty_earners.length > 0) {
+      const shareRecords = royalty_earners.map((earner: any) => {
+        // Convert percentage to basis points (1% = 100 bps)
+        const bps = Math.round(earner.percentage * 100);
+        
+        // Determine the wallet/identifier to use
+        let earnerWallet = '';
+        if (earner.wallet) {
+          earnerWallet = earner.wallet;
+        } else if (earner.social_platform && earner.social_handle) {
+          earnerWallet = `${earner.social_platform}:${earner.social_handle}`;
+        } else {
+          earnerWallet = earner.social_or_wallet || '';
+        }
+
+        return {
+          agreement_version_id: royaltyAgreement.id,
+          earner_wallet: earnerWallet,
+          bps: bps
+        };
+      });
+
+      const { error: sharesError } = await supabase
+        .from('royalty_agreement_version_shares')
+        .insert(shareRecords);
+
+      if (sharesError) {
+        console.error('❌ Error creating royalty shares:', sharesError);
+        return NextResponse.json(
+          { error: 'Failed to create royalty shares', details: sharesError },
+          { status: 500 }
+        );
+      }
+
+      console.log('✅ Royalty shares created successfully for', shareRecords.length, 'earners');
+    }
+
+    // Record the royalty change in history
+    console.log('📝 Recording royalty change in history...');
+    
+    const { error: historyError } = await supabase
+      .from('royalty_changes_history')
+      .insert({
+        token_id: token.id,
+        previous_royalty_earners: null, // First time setup
+        new_royalty_earners: royalty_earners || [],
+        changed_by_user_id: deployer_user_id,
+        fees_at_change: 0
+      });
+
+    if (historyError) {
+      console.error('❌ Error recording royalty change history:', historyError);
+      // Don't fail the entire request for this
+    } else {
+      console.log('✅ Royalty change history recorded');
+    }
+
+    // Initialize fee accrual ledger entries for each earner
+    console.log('💰 Initializing fee accrual ledger...');
+    
+    if (royalty_earners && royalty_earners.length > 0) {
+      const ledgerEntries = royalty_earners.map((earner: any) => {
+        let earnerWallet = '';
+        if (earner.wallet) {
+          earnerWallet = earner.wallet;
+        } else if (earner.social_platform && earner.social_handle) {
+          earnerWallet = `${earner.social_platform}:${earner.social_handle}`;
+        } else {
+          earnerWallet = earner.social_or_wallet || '';
+        }
+
+        return {
+          token_id: token.id,
+          entry_type: 'ACCRUAL',
+          beneficiary_kind: 'EARNER',
+          beneficiary_wallet: earnerWallet,
+          amount_lamports: 0, // Initial amount is 0
+          agreement_version_id: royaltyAgreement.id
+        };
+      });
+
+      const { error: ledgerError } = await supabase
+        .from('fee_accrual_ledger')
+        .insert(ledgerEntries);
+
+      if (ledgerError) {
+        console.error('❌ Error initializing fee accrual ledger:', ledgerError);
+        // Don't fail the entire request for this
+      } else {
+        console.log('✅ Fee accrual ledger initialized for', ledgerEntries.length, 'earners');
+      }
+    }
+
+    // Add platform fee accrual entry
+    const { error: platformLedgerError } = await supabase
+      .from('fee_accrual_ledger')
+      .insert({
+        token_id: token.id,
+        entry_type: 'ACCRUAL',
+        beneficiary_kind: 'PLATFORM',
+        beneficiary_wallet: null,
+        amount_lamports: 0, // Initial amount is 0
+        agreement_version_id: royaltyAgreement.id
+      });
+
+    if (platformLedgerError) {
+      console.error('❌ Error initializing platform fee accrual:', platformLedgerError);
+      // Don't fail the entire request for this
+    } else {
+      console.log('✅ Platform fee accrual initialized');
+    }
+
     return NextResponse.json({
       success: true,
       token,
       ownership,
-      message: 'Token and ownership data saved successfully'
+      royalty_agreement: royaltyAgreement,
+      message: 'Token, ownership, and royalty agreement data saved successfully'
     });
 
   } catch (error) {

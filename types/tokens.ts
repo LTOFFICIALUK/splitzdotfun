@@ -31,6 +31,10 @@ export interface RoyaltyEarner {
   social_or_wallet: string; // "@username" or wallet address
   role: string; // "Creator", "Management", etc.
   percentage: number; // 0-100
+  is_manager?: boolean; // Whether this earner is a manager
+  wallet?: string; // Direct wallet address
+  social_platform?: string; // Platform name (e.g., "X", "Instagram")
+  social_handle?: string; // Handle without @ (e.g., "username")
 }
 
 export interface OwnershipRecord {
