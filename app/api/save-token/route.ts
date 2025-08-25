@@ -118,11 +118,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         return {
           earner_wallet: earnerWallet,
-          bps: Math.floor(earner.percentage * 100), // Convert percentage to basis points
+          bps: Math.floor(earner.percentage * 100), // Convert percentage to basis points (60% = 6000 BPS)
           role: earner.role || 'Earner',
           is_manager: earner.is_manager || false
         };
       });
+
+      console.log('🔄 Royalty shares prepared:', royaltyShares);
 
       // Call centralized royalty share update
       const royaltyUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('/rest/v1', '')}/api/royalty-shares/update`, {
@@ -135,8 +137,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           token_id: token.id,
           royalty_shares: royaltyShares,
           platform_fee_bps: 1000, // 10% platform fee
-          updated_by_user_id: deployer_user_id,
-          reason: 'token_launch'
+          updated_by_user_id: deployer_user_id
+          // Removed 'reason' field as it doesn't exist in the table
         })
       });
 

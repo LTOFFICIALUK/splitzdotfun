@@ -42,6 +42,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const totalBps = royalty_shares.reduce((sum, share) => sum + share.bps, 0);
     const expectedTotal = 10000 - platform_fee_bps;
     
+    console.log('📊 BPS Validation:');
+    console.log('  - Total BPS from shares:', totalBps);
+    console.log('  - Expected total (10000 - platform_fee_bps):', expectedTotal);
+    console.log('  - Platform fee BPS:', platform_fee_bps);
+    console.log('  - Validation:', totalBps === expectedTotal ? '✅ PASS' : '❌ FAIL');
+    
     if (totalBps !== expectedTotal) {
       return NextResponse.json(
         { 
@@ -121,6 +127,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // 4. Create royalty share records
     console.log('👥 Creating royalty share records...');
+    console.log('📊 Royalty shares to create:', royalty_shares);
     
     const shareRecords = royalty_shares.map(share => ({
       agreement_version_id: newAgreement.id,
@@ -128,16 +135,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       bps: share.bps
     }));
 
-    const { error: sharesError } = await supabase
+    console.log('📝 Share records prepared:', shareRecords);
+
+    const { data: createdShares, error: sharesError } = await supabase
       .from('royalty_agreement_version_shares')
-      .insert(shareRecords);
+      .insert(shareRecords)
+      .select();
 
     if (sharesError) {
       console.error('❌ Error creating royalty shares:', sharesError);
       return NextResponse.json(
-        { success: false, error: 'Failed to create royalty share records' },
+        { success: false, error: 'Failed to create royalty share records', details: sharesError },
         { status: 500 }
       );
+    } else {
+      console.log('✅ Royalty shares created successfully:', createdShares?.length, 'shares');
+      console.log('📋 Created shares:', createdShares);
     }
 
     // 5. Update token_ownership table (for backward compatibility)
@@ -191,13 +204,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         previous_royalty_earners: currentAgreement ? currentAgreement.royalty_agreement_version_shares : null,
         new_royalty_earners: royaltyEarnersForOwnership,
         changed_by_user_id: updated_by_user_id,
-        fees_at_change: 0, // Could be enhanced to get current fees
-        reason: reason
+        fees_at_change: 0 // Could be enhanced to get current fees
+        // Removed 'reason' field as it doesn't exist in the table
       });
 
     if (historyError) {
       console.error('❌ Error recording royalty change history:', historyError);
       // Don't fail the request, just log the error
+    } else {
+      console.log('✅ Royalty change history recorded successfully');
     }
 
     // 8. Initialize or update fee accrual ledger entries
