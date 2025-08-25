@@ -238,9 +238,9 @@ export default function NotificationCenter({ userId, className = '' }: Notificat
       {/* Notification Bell */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-text-primary hover:text-primary-mint hover:bg-background-elevated rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-mint focus:ring-offset-2 focus:ring-offset-background-dark"
+        className="relative h-10 w-10 flex items-center justify-center text-text-primary hover:text-primary-mint hover:bg-background-elevated rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-mint focus:ring-offset-2 focus:ring-offset-background-dark"
       >
-        <Bell className="w-6 h-6" />
+        <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-gradient-to-r from-primary-mint to-primary-aqua text-background-dark text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
             {unreadCount > 99 ? '99+' : unreadCount}
