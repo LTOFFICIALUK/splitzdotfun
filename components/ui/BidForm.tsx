@@ -158,7 +158,6 @@ export default function BidForm({ auction, onBidPlaced, className = '' }: BidFor
             <label className="text-sm font-medium text-gray-700">Quick Bid:</label>
             <div className="grid grid-cols-3 gap-2">
               <Button
-                type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => handleQuickBid(minBid)}
@@ -167,7 +166,6 @@ export default function BidForm({ auction, onBidPlaced, className = '' }: BidFor
                 {minBid} SOL
               </Button>
               <Button
-                type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => handleQuickBid(minBid + 0.01)}
@@ -176,7 +174,6 @@ export default function BidForm({ auction, onBidPlaced, className = '' }: BidFor
                 {(minBid + 0.01).toFixed(3)} SOL
               </Button>
               <Button
-                type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => handleQuickBid(minBid + 0.1)}
@@ -224,7 +221,6 @@ export default function BidForm({ auction, onBidPlaced, className = '' }: BidFor
 
           {/* Submit Button */}
           <Button
-            type="submit"
             variant="primary"
             size="lg"
             disabled={isPlacingBid || !bidAmount}

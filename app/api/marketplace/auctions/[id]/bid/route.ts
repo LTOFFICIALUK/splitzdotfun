@@ -226,7 +226,7 @@ export async function POST(
     }
 
     // Create notification for seller about new bid
-    await createBidNotification(auction.seller_user_id, bidAmount, auction.tokens.name, bidderUserId);
+            await createBidNotification(auction.seller_user_id, bidAmount, auction.tokens.name, bidderUserId, id);
 
     return NextResponse.json({
       success: true,
@@ -268,7 +268,11 @@ async function verifyPayment(
     }
 
     // Verify transaction amount matches bid amount
-    const transactionAmount = transaction.meta?.postBalances[0] - transaction.meta?.preBalances[0];
+    if (!transaction.meta?.postBalances || !transaction.meta?.preBalances) {
+      return { success: false, error: 'Transaction metadata is incomplete' };
+    }
+    
+    const transactionAmount = transaction.meta.postBalances[0] - transaction.meta.preBalances[0];
     const expectedAmount = bidAmount * LAMPORTS_PER_SOL;
 
     if (Math.abs(transactionAmount) < expectedAmount * 0.99) { // Allow 1% tolerance
@@ -276,7 +280,7 @@ async function verifyPayment(
     }
 
     // Verify transaction is confirmed
-    if (transaction.meta?.err) {
+    if (transaction.meta.err) {
       return { success: false, error: 'Transaction failed' };
     }
 
@@ -344,7 +348,8 @@ async function createBidNotification(
   sellerUserId: string,
   bidAmount: number,
   tokenName: string,
-  bidderUserId: string
+  bidderUserId: string,
+  auctionId: string
 ) {
   try {
     // Get bidder username

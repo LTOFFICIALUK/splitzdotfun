@@ -90,7 +90,7 @@ const CreateCoin: React.FC = () => {
     {
       id: '1',
       type: 'wallet',
-      identifier: publicKey || '',
+      identifier: '',
       percentage: 100,
       label: 'You (Creator)',
       isManager: true,
@@ -117,6 +117,14 @@ const CreateCoin: React.FC = () => {
   useEffect(() => {
     if (isConnected && publicKey) {
       loadUserProfile();
+      // Set creator's wallet address
+      setRoyaltyRecipients(prev => 
+        prev.map((recipient, index) => 
+          index === 0 
+            ? { ...recipient, identifier: publicKey }
+            : recipient
+        )
+      );
     }
   }, [isConnected, publicKey]);
 
@@ -139,19 +147,36 @@ const CreateCoin: React.FC = () => {
     };
   }, [openDropdowns]);
 
-  // Get user's connected social platforms
+  // Get user's connected social platforms and wallet
   const getUserSocialPlatforms = () => {
-    if (!userProfile?.social_links) return [];
+    const platforms = [];
     
-    return userProfile.social_links.map(link => {
-      const platform = SOCIAL_PLATFORMS.find(p => p.key.toLowerCase() === link.platform.toLowerCase());
-      return {
-        ...link,
-        platformKey: platform?.key || link.platform,
-        platformName: platform?.name || link.platform,
-        platformIcon: platform?.icon || <MessageCircle className="w-4 h-4" />
-      };
-    });
+    // Add wallet address as first option
+    if (publicKey) {
+      platforms.push({
+        platformKey: 'wallet',
+        platformName: 'Wallet Address',
+        platformIcon: <Wallet className="w-4 h-4" />,
+        handle: publicKey,
+        platform: 'wallet',
+        url: ''
+      });
+    }
+    
+    // Add connected social platforms
+    if (userProfile?.social_links) {
+      userProfile.social_links.forEach(link => {
+        const platform = SOCIAL_PLATFORMS.find(p => p.key.toLowerCase() === link.platform.toLowerCase());
+        platforms.push({
+          ...link,
+          platformKey: platform?.key || link.platform,
+          platformName: platform?.name || link.platform,
+          platformIcon: platform?.icon || <MessageCircle className="w-4 h-4" />
+        });
+      });
+    }
+    
+    return platforms;
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -709,6 +734,11 @@ const CreateCoin: React.FC = () => {
                           <span>
                             {recipient.type === 'wallet' ? 'Wallet Address' : 
                              recipient.identifier.split(':')[0] || 'Select platform'}
+                            {recipient.type === 'wallet' && recipient.identifier && (
+                              <span className="text-text-secondary ml-2">
+                                ({recipient.identifier.slice(0, 4)}...{recipient.identifier.slice(-4)})
+                              </span>
+                            )}
                           </span>
                           <ChevronDown className="w-4 h-4" />
                         </button>
@@ -734,15 +764,25 @@ const CreateCoin: React.FC = () => {
                                   <button
                                     key={platform.platformKey}
                                     onClick={() => {
-                                      updateRoyaltyRecipient(recipient.id, 'type', 'social');
-                                      updateRoyaltyRecipient(recipient.id, 'identifier', platform.platformKey + ':@' + platform.handle);
+                                      if (platform.platformKey === 'wallet') {
+                                        updateRoyaltyRecipient(recipient.id, 'type', 'wallet');
+                                        updateRoyaltyRecipient(recipient.id, 'identifier', platform.handle);
+                                      } else {
+                                        updateRoyaltyRecipient(recipient.id, 'type', 'social');
+                                        updateRoyaltyRecipient(recipient.id, 'identifier', platform.platformKey + ':@' + platform.handle);
+                                      }
                                       setOpenDropdowns(prev => ({ ...prev, [`platform-${recipient.id}`]: false }));
                                     }}
                                     className="w-full px-4 py-2 text-left text-text-primary hover:bg-background-elevated transition-colors flex items-center space-x-3"
                                   >
                                     {platform.platformIcon}
                                     <span className="text-sm">{platform.platformName}</span>
-                                    <span className="text-xs text-text-secondary ml-auto">@{platform.handle}</span>
+                                    {platform.platformKey !== 'wallet' && (
+                                      <span className="text-xs text-text-secondary ml-auto">@{platform.handle}</span>
+                                    )}
+                                    {platform.platformKey === 'wallet' && (
+                                      <span className="text-xs text-text-secondary ml-auto">{platform.handle.slice(0, 4)}...{platform.handle.slice(-4)}</span>
+                                    )}
                                   </button>
                                 ))
                               ) : (
@@ -767,6 +807,22 @@ const CreateCoin: React.FC = () => {
                         )}
                       </div>
                     </div>
+                    
+                    {/* Display selected identifier for creator */}
+                    {index === 0 && recipient.identifier && (
+                      <div className="mb-3">
+                        <div className="w-full px-3 py-2 bg-background-elevated border border-background-elevated rounded-lg text-text-primary text-sm flex items-center space-x-2">
+                          <Wallet className="w-4 h-4 text-text-secondary" />
+                          <span className="text-text-secondary">Selected:</span>
+                          <span className="font-medium">
+                            {recipient.type === 'wallet' 
+                              ? `${recipient.identifier.slice(0, 4)}...${recipient.identifier.slice(-4)}`
+                              : recipient.identifier
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     
                     {index > 0 && (
                       <div className="mb-3">
@@ -917,9 +973,7 @@ const CreateCoin: React.FC = () => {
                   placeholder="https://t.me/yourproject"
                   className="w-full px-4 py-3 bg-background-dark border border-background-elevated rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-mint focus:border-transparent"
                 />
-                <p className="text-xs text-text-secondary mt-2">
-                  Royalties will be split between @launchonsplitz (creator) and @splitzdotfun (platform).
-                </p>
+
               </div>
             </div>
 

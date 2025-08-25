@@ -58,7 +58,6 @@ const Header: React.FC<HeaderProps> = ({ currentPath }) => {
     { href: '/explore', label: 'Explore' },
     { href: '/leaderboard', label: 'Leaderboard' },
     { href: '/marketplace', label: 'Marketplace' },
-    { href: '/analytics', label: 'Analytics' },
     { href: '/docs', label: 'Docs' },
   ];
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Shield, BarChart3, Settings } from 'lucide-react';
+import { Shield, BarChart3, Settings, TrendingUp } from 'lucide-react';
 
 const AdminNav: React.FC = () => {
   return (
@@ -13,6 +13,14 @@ const AdminNav: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-6">
+            <Link 
+              href="/admin/analytics"
+              className="flex items-center space-x-2 py-4 text-text-secondary hover:text-text-primary transition-colors border-b-2 border-transparent hover:border-primary-mint"
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>Analytics</span>
+            </Link>
+            
             <Link 
               href="/admin/reconciliation"
               className="flex items-center space-x-2 py-4 text-text-secondary hover:text-text-primary transition-colors border-b-2 border-transparent hover:border-primary-mint"

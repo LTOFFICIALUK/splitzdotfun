@@ -3,9 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Users, TrendingUp, Award, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import BidForm from './BidForm';
-import BidHistory from './BidHistory';
-import AuctionTimer from './AuctionTimer';
-import AuctionStatus from './AuctionStatus';
+import AuctionBidHistory from './AuctionBidHistory';
 
 interface AuctionDetailProps {
   auctionId: string;
@@ -150,7 +148,14 @@ export default function AuctionDetail({ auctionId, className = '' }: AuctionDeta
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6 text-white">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">{auction.tokens.name} Auction</h1>
-          <AuctionStatus status={auction.status} />
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+            auction.status === 'active' ? 'bg-green-100 text-green-800' :
+            auction.status === 'ended' ? 'bg-gray-100 text-gray-800' :
+            auction.status === 'sold' ? 'bg-blue-100 text-blue-800' :
+            'bg-red-100 text-red-800'
+          }`}>
+            {auction.status.charAt(0).toUpperCase() + auction.status.slice(1)}
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -191,12 +196,16 @@ export default function AuctionDetail({ auctionId, className = '' }: AuctionDeta
         </div>
 
         {/* Auction Timer */}
-        <div className="mb-6">
-          <AuctionTimer 
-            endTime={auction.auction_end}
-            isActive={isActive}
-            onTimeUp={() => setRefreshKey(prev => prev + 1)}
-          />
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+          <div className="flex items-center justify-center space-x-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            <span className="text-lg font-semibold text-blue-600">
+              {isActive ? 'Auction Active' : 'Auction Ended'}
+            </span>
+          </div>
+          <p className="text-center text-sm text-blue-600 mt-1">
+            Ends: {formatDate(auction.auction_end)}
+          </p>
         </div>
 
         {/* Current Bid Info */}
@@ -251,10 +260,8 @@ export default function AuctionDetail({ auctionId, className = '' }: AuctionDeta
         {isActive && (
           <div className="mb-6">
             <BidForm 
-              auctionId={auctionId}
-              currentBid={auction.current_bid}
-              reservePrice={auction.reserve_price}
-              onBidSuccess={handleBidSuccess}
+              auction={auction}
+              onBidPlaced={handleBidSuccess}
             />
           </div>
         )}
@@ -303,10 +310,7 @@ export default function AuctionDetail({ auctionId, className = '' }: AuctionDeta
         </div>
 
         {/* Bid History */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Bid History</h3>
-          <BidHistory auctionId={auctionId} key={refreshKey} />
-        </div>
+        <AuctionBidHistory auctionId={auctionId} key={refreshKey} />
       </div>
     </div>
   );

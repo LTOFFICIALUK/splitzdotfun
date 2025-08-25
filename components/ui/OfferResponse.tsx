@@ -204,7 +204,6 @@ export default function OfferResponse({ offer, listingPrice, onResponseSubmitted
               <label className="text-sm font-medium text-gray-700">Quick Counter:</label>
               <div className="grid grid-cols-3 gap-2">
                 <Button
-                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => handleQuickCounter(95)}
@@ -213,7 +212,6 @@ export default function OfferResponse({ offer, listingPrice, onResponseSubmitted
                   95% ({formatSOL(listingPrice * 0.95)})
                 </Button>
                 <Button
-                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => handleQuickCounter(97)}
@@ -222,7 +220,6 @@ export default function OfferResponse({ offer, listingPrice, onResponseSubmitted
                   97% ({formatSOL(listingPrice * 0.97)})
                 </Button>
                 <Button
-                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => handleQuickCounter(99)}
@@ -293,7 +290,6 @@ export default function OfferResponse({ offer, listingPrice, onResponseSubmitted
 
         {/* Submit Button */}
         <Button
-          type="submit"
           variant="primary"
           size="lg"
           disabled={isSubmitting || (responseType === 'counter' && !counterAmount)}

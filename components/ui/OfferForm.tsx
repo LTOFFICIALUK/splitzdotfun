@@ -129,7 +129,6 @@ export default function OfferForm({ listing, onOfferCreated, className = '' }: O
           <label className="text-sm font-medium text-gray-700">Quick Offers:</label>
           <div className="grid grid-cols-3 gap-2">
             <Button
-              type="button"
               variant="outline"
               size="sm"
               onClick={() => handleQuickOffer(80)}
@@ -138,7 +137,6 @@ export default function OfferForm({ listing, onOfferCreated, className = '' }: O
               80% ({formatSOL(listing.listing_price * 0.8)})
             </Button>
             <Button
-              type="button"
               variant="outline"
               size="sm"
               onClick={() => handleQuickOffer(85)}
@@ -147,7 +145,6 @@ export default function OfferForm({ listing, onOfferCreated, className = '' }: O
               85% ({formatSOL(listing.listing_price * 0.85)})
             </Button>
             <Button
-              type="button"
               variant="outline"
               size="sm"
               onClick={() => handleQuickOffer(90)}
@@ -237,7 +234,6 @@ export default function OfferForm({ listing, onOfferCreated, className = '' }: O
 
         {/* Submit Button */}
         <Button
-          type="submit"
           variant="primary"
           size="lg"
           disabled={isCreatingOffer || !offerAmount}

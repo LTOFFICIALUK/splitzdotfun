@@ -317,7 +317,11 @@ async function verifyOfferPayment(
     }
 
     // Verify transaction amount matches offer amount
-    const transactionAmount = transaction.meta?.postBalances[0] - transaction.meta?.preBalances[0];
+    if (!transaction.meta?.postBalances || !transaction.meta?.preBalances) {
+      return { success: false, error: 'Transaction metadata is incomplete' };
+    }
+    
+    const transactionAmount = transaction.meta.postBalances[0] - transaction.meta.preBalances[0];
     const expectedAmount = offerAmount * LAMPORTS_PER_SOL;
 
     if (Math.abs(transactionAmount) < expectedAmount * 0.99) { // Allow 1% tolerance
@@ -325,7 +329,7 @@ async function verifyOfferPayment(
     }
 
     // Verify transaction is confirmed
-    if (transaction.meta?.err) {
+    if (transaction.meta.err) {
       return { success: false, error: 'Transaction failed' };
     }
 

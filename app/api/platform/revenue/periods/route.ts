@@ -108,10 +108,10 @@ export async function GET(request: NextRequest) {
 
       // Sort top performing tokens
       analytics.topPerformingTokens = Object.entries(analytics.topPerformingTokens)
-        .sort(([,a], [,b]) => b.totalPlatformFees - a.totalPlatformFees)
+        .sort(([,a], [,b]) => (b as { totalPlatformFees: number }).totalPlatformFees - (a as { totalPlatformFees: number }).totalPlatformFees)
         .slice(0, 10)
         .reduce((acc, [symbol, data]) => {
-          acc[symbol] = data;
+          acc[symbol] = data as { totalFees: number; totalPlatformFees: number; periods: number };
           return acc;
         }, {} as Record<string, { totalFees: number; totalPlatformFees: number; periods: number }>);
     }

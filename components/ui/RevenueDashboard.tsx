@@ -321,7 +321,7 @@ export default function RevenueDashboard({ className = '' }: RevenueDashboardPro
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Avg per Transaction:</span>
-                <span className="font-semibold">{formatSOL(revenueData.summary.averageRevenuePerTransaction)}</span>
+                <span className="font-semibold">{formatSOL(revenueData.summary.transactionCount > 0 ? revenueData.summary.totalRevenue / revenueData.summary.transactionCount : 0)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Total Transactions:</span>
