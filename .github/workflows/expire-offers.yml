@@ -1,0 +1,99 @@
+name: Expire Offers
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  expire-offers:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Expire Offers
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+          );
+          
+          async function expireOffers() {
+            try {
+              console.log('🔍 Checking for expired offers...');
+              
+              // Get all pending offers that have expired
+              const { data: expiredOffers, error: fetchError } = await supabase
+                .from('marketplace_offers')
+                .select('*')
+                .eq('status', 'pending')
+                .lt('expires_at', new Date().toISOString());
+              
+              if (fetchError) {
+                console.error('❌ Error fetching expired offers:', fetchError);
+                process.exit(1);
+              }
+              
+              if (!expiredOffers || expiredOffers.length === 0) {
+                console.log('✅ No expired offers found');
+                return;
+              }
+              
+              console.log(`📋 Found ${expiredOffers.length} expired offer(s)`);
+              
+              let expiredCount = 0;
+              
+              for (const offer of expiredOffers) {
+                console.log(`\n⏰ Processing expired offer ${offer.id}...`);
+                
+                // Update offer status to expired
+                const { error: updateError } = await supabase
+                  .from('marketplace_offers')
+                  .update({
+                    status: 'expired',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', offer.id);
+                
+                if (updateError) {
+                  console.error(`❌ Error updating offer ${offer.id}:`, updateError);
+                  continue;
+                }
+                
+                expiredCount++;
+                console.log(`✅ Offer ${offer.id} marked as expired`);
+              }
+              
+              console.log(`\n📊 Summary:`);
+              console.log(`   • Total offers processed: ${expiredOffers.length}`);
+              console.log(`   • Offers expired: ${expiredCount}`);
+              
+            } catch (error) {
+              console.error('❌ Unexpected error:', error);
+              process.exit(1);
+            }
+          }
+          
+          expireOffers();
+          "
+
+      - name: Log Results
+        run: echo "✅ Offer expiration check completed"
