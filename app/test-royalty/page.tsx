@@ -29,8 +29,10 @@ interface TestResponse {
 export default function TestRoyaltyPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [runningIndividualTest, setRunningIndividualTest] = useState<string | null>(null);
   const [results, setResults] = useState<TestResponse | null>(null);
   const [cleanupResults, setCleanupResults] = useState<any>(null);
+  const [individualTestResults, setIndividualTestResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const runTests = async () => {
@@ -88,6 +90,34 @@ export default function TestRoyaltyPage() {
     }
   };
 
+  const runIndividualTest = async (testName: string) => {
+    setRunningIndividualTest(testName);
+    setError(null);
+    setIndividualTestResults(null);
+
+    try {
+      const response = await fetch('/api/test-royalty-system/individual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ testName }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Test failed');
+      }
+
+      setIndividualTestResults(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+    } finally {
+      setRunningIndividualTest(null);
+    }
+  };
+
   const getStatusColor = (status: 'passed' | 'failed') => {
     return status === 'passed' ? 'text-green-600' : 'text-red-600';
   };
@@ -108,7 +138,7 @@ export default function TestRoyaltyPage() {
             It uses the test token: <code className="bg-background-elevated px-2 py-1 rounded">Eme5T2s2HB7B8W4YgLG1eReQpnadEVUnQBRjaKTdBAGS</code>
           </p>
           
-          <div className="flex gap-4">
+          <div className="flex gap-4 mb-6">
             <Button
               onClick={runTests}
               disabled={isRunning}
@@ -124,6 +154,43 @@ export default function TestRoyaltyPage() {
             >
               {isCleaning ? '🧹 Cleaning...' : '🗑️ Cleanup Test Data'}
             </Button>
+          </div>
+
+          {/* Individual Test Buttons */}
+          <div className="bg-background-elevated rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-text-primary mb-4">
+              🧪 Individual Tests (Run in Order)
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              {[
+                { name: 'database_tables_check', label: '1. Database Tables', emoji: '📋' },
+                { name: 'test_token_creation', label: '2. Token Creation', emoji: '🪙' },
+                { name: 'test_token_ownership_creation', label: '3. Ownership', emoji: '👤' },
+                { name: 'initial_royalty_share_creation', label: '4. Initial Shares', emoji: '🎯' },
+                { name: 'royalty_share_modification', label: '5. Share Mod', emoji: '🔄' },
+                { name: 'royalty_agreement_versions_verification', label: '6. Versions', emoji: '📋' },
+                { name: 'fee_accrual_ledger_verification', label: '7. Ledger', emoji: '💰' },
+                { name: 'royalty_changes_history_verification', label: '8. History', emoji: '📜' },
+                { name: 'token_ownership_update_verification', label: '9. Ownership Update', emoji: '👤' },
+                { name: 'invalid_bps_validation', label: '10. Validation', emoji: '🚫' }
+              ].map((test) => (
+                <Button
+                  key={test.name}
+                  onClick={() => runIndividualTest(test.name)}
+                  disabled={runningIndividualTest === test.name}
+                  className="bg-background-card hover:bg-background-elevated text-text-primary border border-background-elevated px-3 py-2 rounded text-sm font-medium"
+                >
+                  {runningIndividualTest === test.name ? (
+                    '🔄 Running...'
+                  ) : (
+                    <>
+                      <span className="block text-xs opacity-75">{test.emoji}</span>
+                      <span className="block text-xs">{test.label}</span>
+                    </>
+                  )}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -179,6 +246,27 @@ export default function TestRoyaltyPage() {
                 </ul>
               </div>
             )}
+          </div>
+        )}
+
+        {individualTestResults && (
+          <div className="bg-background-card rounded-lg p-6 mb-6">
+            <h2 className="text-2xl font-bold text-text-primary mb-4">
+              🧪 Individual Test Result: {individualTestResults.testName}
+            </h2>
+            <div className="bg-background-elevated rounded-lg p-4">
+              <h3 className="font-semibold text-text-primary mb-2">Result:</h3>
+              <p className="text-text-secondary mb-4">{individualTestResults.result.message}</p>
+              
+              {individualTestResults.result.details && (
+                <div className="mb-4">
+                  <h4 className="font-semibold text-text-primary mb-2">Details:</h4>
+                  <pre className="text-text-secondary text-sm bg-background-dark p-3 rounded overflow-x-auto">
+                    {JSON.stringify(individualTestResults.result.details, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
