@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,12 +15,13 @@ export async function POST(
   try {
     const { id } = params;
     const body = await request.json();
-    const { 
-      responseType, 
-      counterAmount, 
-      responseMessage, 
+    const {
+      responseType,
+      counterAmount,
+      responseMessage,
       responderUserId,
-      transactionSignature 
+      transactionSignature,
+      buyerWalletAddress
     } = body;
 
     if (!id) {
@@ -57,7 +59,8 @@ export async function POST(
             id,
             name,
             symbol,
-            contract_address
+            contract_address,
+            owner_user_id
           )
         )
       `)
@@ -111,6 +114,13 @@ export async function POST(
           { status: 400 }
         );
       }
+
+      if (counterAmount <= offer.offer_amount) {
+        return NextResponse.json(
+          { success: false, error: 'Counter amount must be higher than the original offer' },
+          { status: 400 }
+        );
+      }
     }
 
     // Create response record
@@ -121,7 +131,8 @@ export async function POST(
         response_type: responseType,
         counter_amount: counterAmount || null,
         response_message: responseMessage || null,
-        responder_user_id: responderUserId
+        responder_user_id: responderUserId,
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -139,6 +150,23 @@ export async function POST(
     let sale = null;
 
     if (responseType === 'accept') {
+      // Validate payment if transaction signature is provided
+      if (transactionSignature && buyerWalletAddress) {
+        const paymentVerification = await verifyOfferPayment(
+          transactionSignature,
+          buyerWalletAddress,
+          offer.marketplace_listings.seller_user_id,
+          offer.offer_amount
+        );
+
+        if (!paymentVerification.success) {
+          return NextResponse.json(
+            { success: false, error: paymentVerification.error },
+            { status: 400 }
+          );
+        }
+      }
+
       // Accept the offer - create sale and update offer
       const { data: acceptedOffer, error: acceptError } = await supabase
         .from('marketplace_offers')
@@ -160,39 +188,10 @@ export async function POST(
 
       updatedOffer = acceptedOffer;
 
-      // Create marketplace sale record
-      const saleData = {
-        token_id: offer.marketplace_listings.tokens.id,
-        seller_user_id: offer.marketplace_listings.seller_user_id,
-        buyer_user_id: offer.buyer_user_id,
-        sale_price_sol: offer.offer_amount,
-        sale_type: 'offer_accepted',
-        payment_method: 'sol',
-        transaction_status: 'pending',
-        transaction_signature: transactionSignature || null,
-        sale_time: new Date().toISOString(),
-        source_offer_id: id
-      };
+      // Process the sale
+      const saleResult = await processOfferSale(offer, transactionSignature);
 
-      // Calculate platform fee (10% of sale price)
-      const salePriceLamports = Math.floor(offer.offer_amount * 1000000000);
-      const platformFeeLamports = Math.floor((salePriceLamports * 10) / 100);
-      const sellerAmountLamports = salePriceLamports - platformFeeLamports;
-
-      const saleDataWithFees = {
-        ...saleData,
-        platform_fee_lamports: platformFeeLamports,
-        seller_amount_lamports: sellerAmountLamports
-      };
-
-      const { data: createdSale, error: saleError } = await supabase
-        .from('marketplace_sales')
-        .insert(saleDataWithFees)
-        .select()
-        .single();
-
-      if (saleError) {
-        console.error('Error creating sale:', saleError);
+      if (!saleResult.success) {
         // Rollback offer status
         await supabase
           .from('marketplace_offers')
@@ -201,14 +200,14 @@ export async function POST(
             updated_at: new Date().toISOString()
           })
           .eq('id', id);
-        
+
         return NextResponse.json(
-          { success: false, error: 'Failed to create sale' },
+          { success: false, error: saleResult.error },
           { status: 500 }
         );
       }
 
-      sale = createdSale;
+      sale = saleResult.sale;
 
       // Deactivate the listing
       await supabase
@@ -229,19 +228,6 @@ export async function POST(
         .eq('listing_id', offer.listing_id)
         .eq('status', 'pending')
         .neq('id', id);
-
-      // Record platform revenue from sale fee
-      if (sale && sale.status === 'completed') {
-        await supabase
-          .from('platform_revenue')
-          .insert({
-            revenue_type: 'sale_fee',
-            amount_lamports: platformFeeLamports,
-            source_sale_id: sale.id,
-            source_token_id: sale.token_id,
-            status: 'collected'
-          });
-      }
 
     } else if (responseType === 'reject') {
       // Reject the offer
@@ -271,6 +257,7 @@ export async function POST(
         .from('marketplace_offers')
         .update({
           status: 'countered',
+          counter_amount: counterAmount,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
@@ -288,6 +275,9 @@ export async function POST(
       updatedOffer = counteredOffer;
     }
 
+    // Create notifications
+    await createOfferResponseNotifications(offer, responseType, responderUserId, counterAmount);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -303,5 +293,178 @@ export async function POST(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+// Helper function to verify offer payment
+async function verifyOfferPayment(
+  transactionSignature: string,
+  buyerWalletAddress: string,
+  sellerUserId: string,
+  offerAmount: number
+) {
+  try {
+    // Initialize Solana connection
+    const connection = new Connection(process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
+
+    // Get transaction details
+    const transaction = await connection.getTransaction(transactionSignature, {
+      commitment: 'confirmed'
+    });
+
+    if (!transaction) {
+      return { success: false, error: 'Transaction not found' };
+    }
+
+    // Verify transaction amount matches offer amount
+    const transactionAmount = transaction.meta?.postBalances[0] - transaction.meta?.preBalances[0];
+    const expectedAmount = offerAmount * LAMPORTS_PER_SOL;
+
+    if (Math.abs(transactionAmount) < expectedAmount * 0.99) { // Allow 1% tolerance
+      return { success: false, error: 'Transaction amount does not match offer amount' };
+    }
+
+    // Verify transaction is confirmed
+    if (transaction.meta?.err) {
+      return { success: false, error: 'Transaction failed' };
+    }
+
+    return { success: true };
+
+  } catch (error) {
+    console.error('Error verifying offer payment:', error);
+    return { success: false, error: 'Failed to verify payment' };
+  }
+}
+
+// Helper function to process offer sale
+async function processOfferSale(offer: any, transactionSignature?: string) {
+  try {
+    // Calculate platform fee (10% of offer amount)
+    const platformFee = offer.offer_amount * 0.1;
+    const sellerAmount = offer.offer_amount - platformFee;
+
+    // Create marketplace sale record
+    const { data: sale, error: saleError } = await supabase
+      .from('marketplace_sales')
+      .insert({
+        token_id: offer.marketplace_listings.tokens.id,
+        seller_user_id: offer.marketplace_listings.seller_user_id,
+        buyer_user_id: offer.buyer_user_id,
+        sale_price_sol: offer.offer_amount,
+        sale_type: 'offer_accepted',
+        payment_method: 'sol',
+        transaction_status: 'completed',
+        transaction_signature: transactionSignature || null,
+        sale_time: new Date().toISOString(),
+        source_offer_id: offer.id,
+        platform_fee_lamports: Math.floor(platformFee * LAMPORTS_PER_SOL),
+        seller_amount_lamports: Math.floor(sellerAmount * LAMPORTS_PER_SOL)
+      })
+      .select()
+      .single();
+
+    if (saleError) {
+      console.error('Error creating sale record:', saleError);
+      return { success: false, error: 'Failed to create sale record' };
+    }
+
+    // Record platform revenue
+    const { error: revenueError } = await supabase
+      .from('platform_revenue')
+      .insert({
+        revenue_type: 'sale_fee',
+        amount_lamports: Math.floor(platformFee * LAMPORTS_PER_SOL),
+        amount_sol: platformFee,
+        source_sale_id: sale.id,
+        source_token_id: offer.marketplace_listings.tokens.id,
+        status: 'collected',
+        collected_at: new Date().toISOString()
+      });
+
+    if (revenueError) {
+      console.error('Error recording platform revenue:', revenueError);
+      // Don't fail the sale for revenue recording errors
+    }
+
+    // Update token ownership (transfer to buyer)
+    const { error: ownershipError } = await supabase
+      .from('tokens')
+      .update({
+        owner_user_id: offer.buyer_user_id,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', offer.marketplace_listings.tokens.id);
+
+    if (ownershipError) {
+      console.error('Error updating token ownership:', ownershipError);
+      return { success: false, error: 'Failed to transfer token ownership' };
+    }
+
+    return { success: true, sale };
+
+  } catch (error) {
+    console.error('Error processing offer sale:', error);
+    return { success: false, error: 'Failed to process offer sale' };
+  }
+}
+
+// Helper function to create offer response notifications
+async function createOfferResponseNotifications(
+  offer: any,
+  responseType: string,
+  responderUserId: string,
+  counterAmount?: number
+) {
+  try {
+    // Get responder username
+    const { data: responder, error: responderError } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', responderUserId)
+      .single();
+
+    const responderUsername = responder?.username || 'Unknown User';
+
+    // Create notification for buyer
+    let notificationTitle = '';
+    let notificationMessage = '';
+
+    switch (responseType) {
+      case 'accept':
+        notificationTitle = 'Offer Accepted!';
+        notificationMessage = `${responderUsername} accepted your offer of ${offer.offer_amount} SOL`;
+        break;
+      case 'reject':
+        notificationTitle = 'Offer Rejected';
+        notificationMessage = `${responderUsername} rejected your offer of ${offer.offer_amount} SOL`;
+        break;
+      case 'counter':
+        notificationTitle = 'Counter Offer Received';
+        notificationMessage = `${responderUsername} countered your offer with ${counterAmount} SOL`;
+        break;
+    }
+
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: offer.buyer_user_id,
+        type: `offer_${responseType}`,
+        title: notificationTitle,
+        message: notificationMessage,
+        data: {
+          offer_id: offer.id,
+          response_type: responseType,
+          counter_amount: counterAmount,
+          responder_user_id: responderUserId,
+          responder_username: responderUsername
+        },
+        read: false,
+        created_at: new Date().toISOString()
+      });
+
+  } catch (error) {
+    console.error('Error creating offer response notifications:', error);
+    // Don't fail the response for notification errors
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -64,14 +65,15 @@ async function collectSaleFees(tokenId?: string, saleId?: string, forceCollectio
     let query = supabase
       .from('marketplace_sales')
       .select(`
-        id,
-        token_id,
-        sale_price_sol,
-        platform_fee_lamports,
-        status,
-        completed_at
+        *,
+        tokens (
+          id,
+          name,
+          symbol,
+          contract_address
+        )
       `)
-      .eq('status', 'completed');
+      .eq('transaction_status', 'completed');
 
     if (tokenId) {
       query = query.eq('token_id', tokenId);
@@ -81,65 +83,71 @@ async function collectSaleFees(tokenId?: string, saleId?: string, forceCollectio
       query = query.eq('id', saleId);
     }
 
+    // Only collect fees that haven't been collected yet
+    if (!forceCollection) {
+      query = query.eq('platform_fee_collected', false);
+    }
+
     const { data: sales, error } = await query;
 
     if (error) {
-      throw error;
+      console.error('Error fetching sales for fee collection:', error);
+      return { amount: 0, count: 0, error: 'Failed to fetch sales' };
     }
 
     let totalCollected = 0;
-    const collectedSales = [];
+    let collectedCount = 0;
 
     for (const sale of sales || []) {
-      // Check if platform revenue already recorded for this sale
-      if (!forceCollection) {
-        const { data: existingRevenue } = await supabase
+      try {
+        // Calculate platform fee (10% of sale price)
+        const platformFee = sale.sale_price_sol * 0.1;
+        const platformFeeLamports = Math.floor(platformFee * LAMPORTS_PER_SOL);
+
+        // Record platform revenue
+        const { error: revenueError } = await supabase
           .from('platform_revenue')
-          .select('id')
-          .eq('source_sale_id', sale.id)
-          .eq('revenue_type', 'sale_fee')
-          .single();
+          .insert({
+            revenue_type: 'sale_fee',
+            amount_lamports: platformFeeLamports,
+            amount_sol: platformFee,
+            source_sale_id: sale.id,
+            source_token_id: sale.token_id,
+            status: 'collected',
+            collected_at: new Date().toISOString()
+          });
 
-        if (existingRevenue) {
-          continue; // Already collected
+        if (revenueError) {
+          console.error('Error recording sale fee revenue:', revenueError);
+          continue;
         }
-      }
 
-      // Record platform revenue
-      const { error: revenueError } = await supabase
-        .from('platform_revenue')
-        .insert({
-          revenue_type: 'sale_fee',
-          amount_lamports: sale.platform_fee_lamports,
-          source_sale_id: sale.id,
-          source_token_id: sale.token_id,
-          status: 'collected'
-        });
+        // Mark sale as fee collected
+        await supabase
+          .from('marketplace_sales')
+          .update({
+            platform_fee_collected: true,
+            platform_fee_collected_at: new Date().toISOString()
+          })
+          .eq('id', sale.id);
 
-      if (!revenueError) {
-        totalCollected += sale.platform_fee_lamports / 1000000000; // Convert to SOL
-        collectedSales.push({
-          saleId: sale.id,
-          amount: sale.platform_fee_lamports / 1000000000
-        });
+        totalCollected += platformFee;
+        collectedCount++;
+
+      } catch (saleError) {
+        console.error('Error processing sale fee collection:', saleError);
       }
     }
 
     return {
-      type: 'sale_fees',
       amount: totalCollected,
-      salesCollected: collectedSales.length,
-      details: collectedSales
+      count: collectedCount,
+      type: 'sale_fees'
     };
 
   } catch (error) {
-    console.error('Error collecting sale fees:', error);
-    return {
-      type: 'sale_fees',
-      amount: 0,
-      salesCollected: 0,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+    console.error('Error in collectSaleFees:', error);
+    return { amount: 0, count: 0, error: 'Failed to collect sale fees' };
   }
 }
 
@@ -149,13 +157,18 @@ async function collectTokenFees(tokenId?: string, forceCollection = false) {
     let query = supabase
       .from('token_fee_periods')
       .select(`
-        id,
-        token_id,
-        total_fees_generated_lamports,
-        platform_fee_collected_lamports,
-        status,
-        period_start,
-        period_end
+        *,
+        tokens (
+          id,
+          name,
+          symbol,
+          contract_address
+        ),
+        marketplace_sales (
+          id,
+          sale_price_sol,
+          completed_at
+        )
       `)
       .eq('status', 'active');
 
@@ -163,103 +176,165 @@ async function collectTokenFees(tokenId?: string, forceCollection = false) {
       query = query.eq('token_id', tokenId);
     }
 
-    const { data: periods, error } = await query;
+    const { data: feePeriods, error } = await query;
 
     if (error) {
-      throw error;
+      console.error('Error fetching token fee periods:', error);
+      return { amount: 0, count: 0, error: 'Failed to fetch token fee periods' };
     }
 
     let totalCollected = 0;
-    const collectedPeriods = [];
+    let collectedCount = 0;
 
-    for (const period of periods || []) {
-      // Get latest fee snapshot for this token
-      const { data: latestSnapshot } = await supabase
-        .from('token_fee_snapshots')
-        .select('lifetime_fees_lamports_after')
-        .eq('token_id', period.token_id)
-        .order('fetched_at', { ascending: false })
-        .limit(1)
-        .single();
+    for (const period of feePeriods || []) {
+      try {
+        // Check if period has ended
+        const now = new Date();
+        const periodEnd = new Date(period.period_end);
+        const hasEnded = now > periodEnd;
 
-      if (!latestSnapshot) {
-        continue;
-      }
+        if (!hasEnded && !forceCollection) {
+          continue; // Skip periods that haven't ended yet
+        }
 
-      // Calculate new fees generated
-      const newFeesGenerated = latestSnapshot.lifetime_fees_lamports_after - period.total_fees_generated_lamports;
-      
-      if (newFeesGenerated <= 0) {
-        continue;
-      }
+        // Get the latest fee snapshot for this token
+        const { data: latestSnapshot, error: snapshotError } = await supabase
+          .from('token_fee_snapshots')
+          .select('lifetime_fees_lamports')
+          .eq('token_id', period.token_id)
+          .order('snapshot_time', { ascending: false })
+          .limit(1)
+          .single();
 
-      // Calculate platform's share (10%)
-      const platformFeeLamports = Math.floor((newFeesGenerated * 10) / 100);
+        if (snapshotError || !latestSnapshot) {
+          console.error('Error fetching latest fee snapshot:', snapshotError);
+          continue;
+        }
 
-      if (platformFeeLamports <= 0) {
-        continue;
-      }
+        // Calculate new fees generated since last collection
+        const lastCollectedFees = period.total_fees_generated_lamports || 0;
+        const currentTotalFees = latestSnapshot.lifetime_fees_lamports;
+        const newFeesGenerated = currentTotalFees - lastCollectedFees;
 
-      // Update fee period
-      const { error: updateError } = await supabase
-        .from('token_fee_periods')
-        .update({
-          total_fees_generated_lamports: period.total_fees_generated_lamports + newFeesGenerated,
-          platform_fee_collected_lamports: period.platform_fee_collected_lamports + platformFeeLamports,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', period.id);
+        if (newFeesGenerated <= 0 && !forceCollection) {
+          continue; // No new fees to collect
+        }
 
-      if (updateError) {
-        continue;
-      }
+        // Calculate platform's 10% share
+        const platformFeeLamports = Math.floor(newFeesGenerated * 0.1);
+        const platformFeeSol = platformFeeLamports / LAMPORTS_PER_SOL;
 
-      // Record platform revenue
-      const { error: revenueError } = await supabase
-        .from('platform_revenue')
-        .insert({
-          revenue_type: 'token_fee',
-          amount_lamports: platformFeeLamports,
-          source_token_id: period.token_id,
-          fee_period_id: period.id,
-          status: 'collected'
-        });
+        if (platformFeeLamports > 0) {
+          // Record platform revenue
+          const { error: revenueError } = await supabase
+            .from('platform_revenue')
+            .insert({
+              revenue_type: 'token_fee',
+              amount_lamports: platformFeeLamports,
+              amount_sol: platformFeeSol,
+              source_token_id: period.token_id,
+              source_fee_period_id: period.id,
+              status: 'collected',
+              collected_at: new Date().toISOString()
+            });
 
-      if (!revenueError) {
-        totalCollected += platformFeeLamports / 1000000000; // Convert to SOL
-        collectedPeriods.push({
-          periodId: period.id,
-          amount: platformFeeLamports / 1000000000,
-          newFeesGenerated: newFeesGenerated / 1000000000
-        });
-      }
+          if (revenueError) {
+            console.error('Error recording token fee revenue:', revenueError);
+            continue;
+          }
 
-      // Check if period has ended
-      if (new Date() >= new Date(period.period_end)) {
-        await supabase
-          .from('token_fee_periods')
-          .update({
-            status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', period.id);
+          // Update fee period
+          await supabase
+            .from('token_fee_periods')
+            .update({
+              total_fees_generated_lamports: currentTotalFees,
+              platform_fee_collected_lamports: (period.platform_fee_collected_lamports || 0) + platformFeeLamports,
+              platform_fee_collected_sol: (period.platform_fee_collected_sol || 0) + platformFeeSol,
+              last_collection_at: new Date().toISOString(),
+              status: hasEnded ? 'completed' : 'active'
+            })
+            .eq('id', period.id);
+
+          totalCollected += platformFeeSol;
+          collectedCount++;
+        }
+
+      } catch (periodError) {
+        console.error('Error processing token fee period:', periodError);
       }
     }
 
     return {
-      type: 'token_fees',
       amount: totalCollected,
-      periodsCollected: collectedPeriods.length,
-      details: collectedPeriods
+      count: collectedCount,
+      type: 'token_fees'
     };
 
   } catch (error) {
-    console.error('Error collecting token fees:', error);
-    return {
-      type: 'token_fees',
-      amount: 0,
-      periodsCollected: 0,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+    console.error('Error in collectTokenFees:', error);
+    return { amount: 0, count: 0, error: 'Failed to collect token fees' };
+  }
+}
+
+// GET - Get collection status and statistics
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const tokenId = searchParams.get('tokenId');
+
+    // Get pending sale fees
+    const { data: pendingSaleFees, error: saleFeesError } = await supabase
+      .from('marketplace_sales')
+      .select('sale_price_sol')
+      .eq('transaction_status', 'completed')
+      .eq('platform_fee_collected', false);
+
+    // Get active token fee periods
+    const { data: activeTokenPeriods, error: tokenPeriodsError } = await supabase
+      .from('token_fee_periods')
+      .select('total_fees_generated_lamports, platform_fee_collected_lamports')
+      .eq('status', 'active');
+
+    if (saleFeesError || tokenPeriodsError) {
+      console.error('Error fetching collection statistics:', { saleFeesError, tokenPeriodsError });
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch collection statistics' },
+        { status: 500 }
+      );
+    }
+
+    // Calculate pending amounts
+    const pendingSaleFeesAmount = (pendingSaleFees || []).reduce((sum, sale) => {
+      return sum + (sale.sale_price_sol * 0.1); // 10% platform fee
+    }, 0);
+
+    const pendingTokenFeesAmount = (activeTokenPeriods || []).reduce((sum, period) => {
+      const totalFees = period.total_fees_generated_lamports || 0;
+      const collectedFees = period.platform_fee_collected_lamports || 0;
+      const uncollectedFees = totalFees - collectedFees;
+      return sum + (uncollectedFees * 0.1 / LAMPORTS_PER_SOL); // 10% of uncollected fees
+    }, 0);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        pendingSaleFees: {
+          amount: pendingSaleFeesAmount,
+          count: pendingSaleFees?.length || 0
+        },
+        pendingTokenFees: {
+          amount: pendingTokenFeesAmount,
+          count: activeTokenPeriods?.length || 0
+        },
+        totalPending: pendingSaleFeesAmount + pendingTokenFeesAmount
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting collection status:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
